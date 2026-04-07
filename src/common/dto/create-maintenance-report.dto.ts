@@ -58,6 +58,11 @@ class ChecklistResultItemDto {
   @MaxLength(120)
   label: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  status?: string;
+
   @Type(() => Boolean)
   @IsBoolean()
   checked: boolean;

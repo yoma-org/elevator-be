@@ -48,7 +48,11 @@ export class MaintenanceReportsService {
       .map((group) => ({
         category: group.category.trim(),
         items: group.items
-          .map((item) => ({ label: item.label.trim(), checked: Boolean(item.checked) }))
+          .map((item) => ({
+            label: item.label.trim(),
+            status: item.status?.trim() || '',
+            checked: Boolean(item.checked),
+          }))
           .filter((item) => item.label.length > 0),
       }))
       .filter((group) => group.category.length > 0 && group.items.length > 0);
