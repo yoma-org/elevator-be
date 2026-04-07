@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase.service';
 
 const FIELD_COLUMN_MAP: Record<string, string> = {
-  findings: 'findings',
+  findings: 'remarks',
   remarks: 'remarks',
+  notes: 'remarks',
 };
 
 const MAX_RAW_ROWS = 100;
