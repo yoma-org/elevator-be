@@ -7,6 +7,7 @@ import { ChecklistsModule } from './checklists/checklists.module';
 import { EquipmentModule } from './equipment/equipment.module';
 import { MaintenanceReportsModule } from './maintenance-reports/maintenance-reports.module';
 import { SuggestionsModule } from './suggestions/suggestions.module';
+import { BatchModule } from './batch/batch.module';
 
 @Global()
 @Module({
@@ -16,6 +17,7 @@ import { SuggestionsModule } from './suggestions/suggestions.module';
     EquipmentModule,
     MaintenanceReportsModule,
     SuggestionsModule,
+    BatchModule,
   ],
   controllers: [AppController],
   providers: [AppService, SupabaseService],
