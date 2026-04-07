@@ -311,6 +311,34 @@ export class MaintenanceReportsService {
     return report;
   }
 
+  async addNote(
+    reportCode: string,
+    body: { text: string; author?: string; kind?: string },
+  ) {
+    const existing = await this.findByCode(reportCode);
+
+    const updatedNotes = [
+      ...(existing.internalNotes ?? []),
+      {
+        id: randomUUID(),
+        at: new Date().toISOString(),
+        author: body.author?.trim() || 'ADMIN',
+        kind: body.kind?.trim() || 'dispatch',
+        text: body.text.trim(),
+      },
+    ];
+
+    const { data: report, error } = await this.supabase.client
+      .from('maintenance_reports')
+      .update({ internalNotes: updatedNotes })
+      .eq('reportCode', reportCode)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return report;
+  }
+
   async updateStatus(reportCode: string, status: string) {
     const existing = await this.findByCode(reportCode);
 

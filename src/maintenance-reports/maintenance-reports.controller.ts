@@ -103,6 +103,15 @@ export class MaintenanceReportsController {
     return { success: true, reportCode: report.reportCode, status: report.status };
   }
 
+  @Post('admin/:reportCode/notes')
+  async addNote(
+    @Param('reportCode') reportCode: string,
+    @Body() body: { text: string; author?: string; kind?: string },
+  ) {
+    const report = await this.maintenanceReportsService.addNote(reportCode, body);
+    return { success: true, reportCode: report.reportCode };
+  }
+
   @Patch('admin/:reportCode')
   async updateDetail(
     @Param('reportCode') reportCode: string,
