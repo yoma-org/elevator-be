@@ -25,8 +25,12 @@ export class MaintenanceReportsController {
   }
 
   @Get('admin/stats')
-  async getStats() {
-    return this.maintenanceReportsService.getStats();
+  async getStats(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.maintenanceReportsService.getStats(from, to, status);
   }
 
   @Get('admin/list')
@@ -36,9 +40,9 @@ export class MaintenanceReportsController {
     @Query('status') status?: string,
   ) {
     const reports = await this.maintenanceReportsService.findAll(from, to, status);
-    return reports.map((r) => ({
+    return reports.map((r: any) => ({
       id: r.reportCode,
-      building: r.building?.name ?? '',
+      building: r.buildings?.name ?? '',
       equipmentCode: r.equipment?.equipmentCode ?? '',
       equipmentType: r.equipment?.equipmentType ?? '',
       status: r.status,
@@ -59,7 +63,9 @@ export class MaintenanceReportsController {
     const r = await this.maintenanceReportsService.findByCode(reportCode);
     return {
       id: r.reportCode,
-      building: r.building?.name ?? '',
+      buildingId: r.building_id,
+      building: r.buildings?.name ?? '',
+      equipmentId: r.equipment_id,
       equipmentCode: r.equipment?.equipmentCode ?? '',
       equipmentType: r.equipment?.equipmentType ?? '',
       status: r.status,
@@ -95,5 +101,14 @@ export class MaintenanceReportsController {
   ) {
     const report = await this.maintenanceReportsService.updateStatus(reportCode, body.status);
     return { success: true, reportCode: report.reportCode, status: report.status };
+  }
+
+  @Patch('admin/:reportCode')
+  async updateDetail(
+    @Param('reportCode') reportCode: string,
+    @Body() body: { equipmentId?: string },
+  ) {
+    const report = await this.maintenanceReportsService.updateDetail(reportCode, body);
+    return { success: true, reportCode: report.reportCode };
   }
 }
