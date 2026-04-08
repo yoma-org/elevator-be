@@ -4,7 +4,7 @@
 
 export type AdminRole = 'operation' | 'mnt-manager' | 'pc-team' | 'commercial';
 export type PermissionAction = 'view' | 'approve' | 'comment' | 'review' | 'download';
-export type ReportStatus = 'received' | 'active' | 'submitted' | 'pc-review' | 'comm-review' | 'invoice-ready';
+export type ReportStatus = 'received' | 'active' | 'submitted' | 'pc-review' | 'comm-review' | 'invoice-ready' | 'closed';
 
 const PERMISSIONS: Record<AdminRole, Partial<Record<ReportStatus, PermissionAction[]>>> = {
   operation: {
@@ -14,6 +14,7 @@ const PERMISSIONS: Record<AdminRole, Partial<Record<ReportStatus, PermissionActi
     'pc-review': ['view', 'comment'],
     'comm-review': ['view'],
     'invoice-ready': ['view', 'download'],
+    closed: ['view'],
   },
   'mnt-manager': {
     active: ['view'],
@@ -21,15 +22,18 @@ const PERMISSIONS: Record<AdminRole, Partial<Record<ReportStatus, PermissionActi
     'pc-review': ['view'],
     'comm-review': ['comment'],
     'invoice-ready': ['view'],
+    closed: ['view'],
   },
   'pc-team': {
     'pc-review': ['review', 'approve', 'comment'],
     'comm-review': ['view'],
     'invoice-ready': ['view'],
+    closed: ['view'],
   },
   commercial: {
     'comm-review': ['review', 'approve', 'comment'],
     'invoice-ready': ['view', 'approve', 'download'],
+    closed: ['view'],
   },
 };
 
