@@ -339,7 +339,7 @@ export class MaintenanceReportsService {
     return report;
   }
 
-  async updateStatus(reportCode: string, status: string) {
+  async updateStatus(reportCode: string, status: string, author?: string) {
     const existing = await this.findByCode(reportCode);
 
     const updatedNotes = [
@@ -347,7 +347,7 @@ export class MaintenanceReportsService {
       {
         id: randomUUID(),
         at: new Date().toISOString(),
-        author: 'ADMIN',
+        author: author ?? 'ADMIN',
         kind: 'system',
         text: `Status updated to ${status}`,
       },

@@ -8,11 +8,13 @@ import { EquipmentModule } from './equipment/equipment.module';
 import { MaintenanceReportsModule } from './maintenance-reports/maintenance-reports.module';
 import { SuggestionsModule } from './suggestions/suggestions.module';
 import { BatchModule } from './batch/batch.module';
+import { AdminAuthModule } from './admin-auth/admin-auth.module';
 
 @Global()
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    AdminAuthModule,
     ChecklistsModule,
     EquipmentModule,
     MaintenanceReportsModule,
