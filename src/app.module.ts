@@ -9,6 +9,7 @@ import { MaintenanceReportsModule } from './maintenance-reports/maintenance-repo
 import { SuggestionsModule } from './suggestions/suggestions.module';
 import { BatchModule } from './batch/batch.module';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
+import { MmprModule } from './mmpr/mmpr.module';
 
 @Global()
 @Module({
@@ -20,6 +21,7 @@ import { AdminAuthModule } from './admin-auth/admin-auth.module';
     MaintenanceReportsModule,
     SuggestionsModule,
     BatchModule,
+    MmprModule,
   ],
   controllers: [AppController],
   providers: [AppService, SupabaseService],

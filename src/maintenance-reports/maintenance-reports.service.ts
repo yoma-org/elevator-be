@@ -7,7 +7,7 @@ const REPORT_CODE_PREFIX = 'MSR';
 const REPORT_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const REPORT_CODE_LENGTH = 8;
 const REPORT_CODE_MAX_ATTEMPTS = 10;
-const INITIAL_REPORT_STATUS = 'submitted';
+const INITIAL_REPORT_STATUS = 'pc-review';
 const DEFAULT_REPORT_PRIORITY = 'Medium';
 
 @Injectable()
@@ -139,7 +139,7 @@ export class MaintenanceReportsService {
             at: new Date().toISOString(),
             author: 'SYSTEM',
             kind: 'system',
-            text: 'Report submitted from the public maintenance form. Initial status set to pending.',
+            text: 'Report submitted from the public maintenance form. Initial status set to pc-review.',
           },
         ],
       })
@@ -210,7 +210,7 @@ export class MaintenanceReportsService {
     let activeQuery = this.supabase.client
       .from('maintenance_reports')
       .select('id', { count: 'exact', head: true })
-      .in('status', ['active', 'in-progress']);
+      .in('status', ['pc-review']);
     activeQuery = applyFilters(activeQuery);
 
     const [queueRes, monthRes, activeRes] = await Promise.all([
@@ -286,7 +286,7 @@ export class MaintenanceReportsService {
     body: { equipmentId?: string },
   ) {
     const existing = await this.findByCode(reportCode);
-    const editable = ['submitted', 'pc-review', 'comm-review', 'pending', 'completed', 'commercial-review'];
+    const editable = ['pc-review', 'comm-review', 'pending', 'completed', 'commercial-review'];
     if (!editable.includes(existing.status)) {
       throw new Error('Work order is not in an editable status');
     }
