@@ -97,6 +97,7 @@ export class MaintenanceReportsController {
       internalNotes: r.internalNotes,
       priority: r.priority,
       assignedTo: r.assignedTo,
+      photos: r.photos ?? null,
       technicianSignature: r.technicianSignature ?? null,
       customerSignature: r.customerSignature ?? null,
       submittedAt: r.submittedAt,
