@@ -81,11 +81,11 @@ export class MmprService {
 
     const { data: reports } = await this.supabase.client
       .from('maintenance_reports')
-      .select('reportCode, arrivalDateTime, technicianName, findings, workPerformed, partsUsed, checklistResults, remarks, status')
+      .select('report_code, arrival_date_time, technician_name, findings, work_performed, parts_used, checklist_results, remarks, status')
       .eq('equipment_id', equipmentId)
-      .gte('arrivalDateTime', startOfYear)
-      .lt('arrivalDateTime', endOfYear)
-      .order('arrivalDateTime', { ascending: true });
+      .gte('arrival_date_time', startOfYear)
+      .lt('arrival_date_time', endOfYear)
+      .order('arrival_date_time', { ascending: true });
 
     return {
       mmpr: mmpr ?? {

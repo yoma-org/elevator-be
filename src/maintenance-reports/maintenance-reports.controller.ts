@@ -16,14 +16,20 @@ export class MaintenanceReportsController {
       success: true,
       message: 'Maintenance report submitted successfully',
       data: {
-        reportCode: report.reportCode,
+        report_code: report.report_code,
         status: report.status,
         photoCount: report.photos?.length ?? 0,
-        hasTechnicianSignature: Boolean(report.technicianSignature),
-        hasCustomerSignature: Boolean(report.customerSignature),
-        submittedAt: report.submittedAt,
+        hasTechnicianSignature: Boolean(report.technician_signature),
+        hasCustomerSignature: Boolean(report.customer_signature),
+        submitted_at: report.submitted_at,
       },
     };
+  }
+
+  @Get('admin/management-schedule')
+  @UseGuards(AdminAuthGuard)
+  async getManagementSchedule() {
+    return this.maintenanceReportsService.getManagementSchedule();
   }
 
   @Get('admin/stats')
@@ -51,58 +57,58 @@ export class MaintenanceReportsController {
     return reports
       .filter((r: any) => canView(role, r.status))
       .map((r: any) => ({
-        id: r.reportCode,
+        id: r.report_code,
         building: r.buildings?.name ?? '',
-        equipmentCode: r.equipment?.equipmentCode ?? '',
-        equipmentType: r.equipment?.equipmentType ?? '',
+        equipment_code: r.equipment?.equipment_code ?? '',
+        equipment_type: r.equipment?.equipment_type ?? '',
         status: r.status,
-        maintenanceType: r.maintenanceType,
-        technicianName: r.technicianName,
-        arrivalDateTime: r.arrivalDateTime,
+        maintenance_type: r.maintenance_type,
+        technician_name: r.technician_name,
+        arrival_date_time: r.arrival_date_time,
         findings: r.findings,
-        workPerformed: r.workPerformed,
-        partsUsed: r.partsUsed,
+        work_performed: r.work_performed,
+        parts_used: r.parts_used,
         priority: r.priority,
-        submittedAt: r.submittedAt,
-        createdAt: r.createdAt,
+        submitted_at: r.submitted_at,
+        created_at: r.created_at,
       }));
   }
 
-  @Get('admin/:reportCode')
+  @Get('admin/:report_code')
   @UseGuards(AdminAuthGuard)
-  async findOne(@Req() req: any, @Param('reportCode') reportCode: string) {
+  async findOne(@Req() req: any, @Param('report_code') report_code: string) {
     const role: string = req.adminUser?.role ?? '';
-    const r = await this.maintenanceReportsService.findByCode(reportCode);
+    const r = await this.maintenanceReportsService.findByCode(report_code);
 
     if (!canView(role, r.status)) {
       throw new ForbiddenException('You do not have permission to view this report');
     }
 
     return {
-      id: r.reportCode,
-      buildingId: r.building_id,
+      id: r.report_code,
+      building_id: r.building_id,
       building: r.buildings?.name ?? '',
       equipmentId: r.equipment_id,
-      equipmentCode: r.equipment?.equipmentCode ?? '',
-      equipmentType: r.equipment?.equipmentType ?? '',
+      equipment_code: r.equipment?.equipment_code ?? '',
+      equipment_type: r.equipment?.equipment_type ?? '',
       status: r.status,
-      maintenanceType: r.maintenanceType,
-      technicianName: r.technicianName,
-      arrivalDateTime: r.arrivalDateTime,
+      maintenance_type: r.maintenance_type,
+      technician_name: r.technician_name,
+      arrival_date_time: r.arrival_date_time,
       findings: r.findings,
-      workPerformed: r.workPerformed,
-      partsUsed: r.partsUsed,
-      checklistResults: r.checklistResults,
+      work_performed: r.work_performed,
+      parts_used: r.parts_used,
+      checklist_results: r.checklist_results,
       remarks: r.remarks,
-      internalNotes: r.internalNotes,
+      internal_notes: r.internal_notes,
       priority: r.priority,
-      assignedTo: r.assignedTo,
+      assigned_to: r.assigned_to,
       photos: r.photos ?? null,
-      technicianSignature: r.technicianSignature ?? null,
-      customerSignature: r.customerSignature ?? null,
-      submittedAt: r.submittedAt,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
+      technician_signature: r.technician_signature ?? null,
+      customer_signature: r.customer_signature ?? null,
+      submitted_at: r.submitted_at,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
     };
   }
 
@@ -110,7 +116,7 @@ export class MaintenanceReportsController {
   @UseGuards(AdminAuthGuard)
   async createCbsCall(
     @Req() req: any,
-    @Body() body: { buildingId: string; equipmentId: string; calledPerson: string; calledTime: string; issue: string },
+    @Body() body: { building_id: string; equipmentId: string; calledPerson: string; calledTime: string; issue: string },
   ) {
     const role: string = req.adminUser?.role ?? '';
     // Only operation can create CBS calls (they have approve on 'received')
@@ -119,18 +125,18 @@ export class MaintenanceReportsController {
     }
 
     const report = await this.maintenanceReportsService.createCbsCall(body);
-    return { success: true, reportCode: report.reportCode, status: report.status };
+    return { success: true, report_code: report.report_code, status: report.status };
   }
 
-  @Patch('admin/:reportCode/status')
+  @Patch('admin/:report_code/status')
   @UseGuards(AdminAuthGuard)
   async updateStatus(
     @Req() req: any,
-    @Param('reportCode') reportCode: string,
+    @Param('report_code') report_code: string,
     @Body() body: { status: string },
   ) {
     const role: string = req.adminUser?.role ?? '';
-    const existing = await this.maintenanceReportsService.findByCode(reportCode);
+    const existing = await this.maintenanceReportsService.findByCode(report_code);
 
     // Only allow advancing to the next status if the role has 'approve'
     const nextStatus = NEXT_STATUS[existing.status];
@@ -146,40 +152,40 @@ export class MaintenanceReportsController {
     }
 
     const author = req.adminUser?.name ?? 'ADMIN';
-    const report = await this.maintenanceReportsService.updateStatus(reportCode, body.status, author);
-    return { success: true, reportCode: report.reportCode, status: report.status };
+    const report = await this.maintenanceReportsService.updateStatus(report_code, body.status, author);
+    return { success: true, report_code: report.report_code, status: report.status };
   }
 
-  @Post('admin/:reportCode/notes')
+  @Post('admin/:report_code/notes')
   @UseGuards(AdminAuthGuard)
   async addNote(
     @Req() req: any,
-    @Param('reportCode') reportCode: string,
+    @Param('report_code') report_code: string,
     @Body() body: { text: string; author?: string; kind?: string },
   ) {
     const role: string = req.adminUser?.role ?? '';
-    const existing = await this.maintenanceReportsService.findByCode(reportCode);
+    const existing = await this.maintenanceReportsService.findByCode(report_code);
 
     if (!can(role, existing.status, 'comment') && !can(role, existing.status, 'review')) {
       throw new ForbiddenException('You do not have permission to comment on this report');
     }
 
     const author = body.author?.trim() || req.adminUser?.name || 'ADMIN';
-    const report = await this.maintenanceReportsService.addNote(reportCode, {
+    const report = await this.maintenanceReportsService.addNote(report_code, {
       text: body.text,
       author,
       kind: body.kind,
     });
-    return { success: true, reportCode: report.reportCode };
+    return { success: true, report_code: report.report_code };
   }
 
-  @Patch('admin/:reportCode')
+  @Patch('admin/:report_code')
   @UseGuards(AdminAuthGuard)
   async updateDetail(
-    @Param('reportCode') reportCode: string,
+    @Param('report_code') report_code: string,
     @Body() body: { equipmentId?: string },
   ) {
-    const report = await this.maintenanceReportsService.updateDetail(reportCode, body);
-    return { success: true, reportCode: report.reportCode };
+    const report = await this.maintenanceReportsService.updateDetail(report_code, body);
+    return { success: true, report_code: report.report_code };
   }
 }

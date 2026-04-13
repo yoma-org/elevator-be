@@ -26,6 +26,10 @@ class PartsUsedDto {
   @IsNumber()
   @Min(1)
   quantity: number;
+
+  @IsOptional()
+  @IsString()
+  status?: 'replaced' | 'needs-replacement';
 }
 
 class ReportPhotoDto {
@@ -85,7 +89,7 @@ class ChecklistResultsDto {
   @IsOptional()
   @IsString()
   @MaxLength(80)
-  equipmentType?: string;
+  equipment_type?: string;
 
   @IsOptional()
   @IsString()
@@ -111,26 +115,26 @@ class ChecklistResultsDto {
 
 export class CreateMaintenanceReportDto {
   @IsUUID()
-  buildingId: string;
+  building_id: string;
 
   @IsUUID()
   equipmentId: string;
 
   @IsString()
   @IsNotEmpty()
-  maintenanceType: string;
+  maintenance_type: string;
 
   @IsDateString()
-  arrivalDateTime: string;
+  arrival_date_time: string;
 
   @IsString()
   @IsNotEmpty()
-  technicianName: string;
+  technician_name: string;
 
   @IsOptional()
   @ValidateNested()
   @Type(() => ChecklistResultsDto)
-  checklistResults?: ChecklistResultsDto;
+  checklist_results?: ChecklistResultsDto;
 
   @IsOptional()
   @IsString()
@@ -138,13 +142,13 @@ export class CreateMaintenanceReportDto {
 
   @IsOptional()
   @IsString()
-  workPerformed?: string;
+  work_performed?: string;
 
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PartsUsedDto)
-  partsUsed?: PartsUsedDto[];
+  parts_used?: PartsUsedDto[];
 
   @IsOptional()
   @IsString()
@@ -162,12 +166,12 @@ export class CreateMaintenanceReportDto {
   @Matches(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, {
     message: 'Technician signature must be a valid image data URL',
   })
-  technicianSignature?: string;
+  technician_signature?: string;
 
   @IsOptional()
   @IsString()
   @Matches(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, {
     message: 'Customer signature must be a valid image data URL',
   })
-  customerSignature?: string;
+  customer_signature?: string;
 }

@@ -19,10 +19,10 @@ export class EquipmentController {
 
   @Get('by-building')
   async getByBuilding(
-    @Query('buildingId') buildingId: string,
-    @Query('equipmentType') equipmentType?: string,
+    @Query('building_id') building_id: string,
+    @Query('equipment_type') equipment_type?: string,
   ) {
-    const data = await this.equipmentService.getEquipmentByBuilding(buildingId, equipmentType);
+    const data = await this.equipmentService.getEquipmentByBuilding(building_id, equipment_type);
     return { success: true, data };
   }
 }

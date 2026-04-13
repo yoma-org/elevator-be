@@ -5,7 +5,7 @@ import { SupabaseService } from '../common/supabase.service';
 
 const TOKEN_EXPIRY_SECONDS = 60 * 60 * 24; // 24 hours
 
-export type AdminRole = 'operation' | 'mnt-manager' | 'pc-team' | 'commercial';
+export type AdminRole = 'operation' | 'mnt-manager' | 'pc-team' | 'commercial' | 'management';
 
 export interface AdminUser {
   id: string;
@@ -34,6 +34,7 @@ const SEED_USERS: AdminUser[] = [
   { id: randomUUID(), email: 'manager@yomaelevator.com', password: 'yecl2024', name: 'MNT Manager', role: 'mnt-manager', active: true },
   { id: randomUUID(), email: 'pc@yomaelevator.com', password: 'yecl2024', name: 'PC Team', role: 'pc-team', active: true },
   { id: randomUUID(), email: 'commercial@yomaelevator.com', password: 'yecl2024', name: 'Commercial Team', role: 'commercial', active: true },
+  { id: randomUUID(), email: 'management@yomaelevator.com', password: 'yecl2024', name: 'Management', role: 'management', active: true },
 ];
 
 @Injectable()

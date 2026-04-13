@@ -16,20 +16,20 @@ export class Equipment {
   id: string;
 
   @Column({ type: 'varchar', length: 80 })
-  equipmentType: string;
+  equipment_type: string;
 
   @ManyToOne(() => EquipmentType, {
     nullable: true,
     onDelete: 'RESTRICT',
   })
-  @JoinColumn({ name: 'equipmentTypeId' })
+  @JoinColumn({ name: 'equipment_type_id' })
   equipmentTypeInfo: EquipmentType | null;
 
   @Column({ type: 'varchar', length: 80 })
-  equipmentCode: string;
+  equipment_code: string;
 
   @Column({ type: 'varchar', length: 120, nullable: true })
-  serialNumber: string | null;
+  serial_number: string | null;
 
   @Column({ type: 'varchar', length: 80, nullable: true })
   brand: string | null;
@@ -41,7 +41,7 @@ export class Equipment {
   location: string | null;
 
   @Column({ type: 'boolean', default: true })
-  isActive: boolean;
+  is_active: boolean;
 
   @ManyToOne(() => Building, (building) => building.equipment, {
     nullable: false,

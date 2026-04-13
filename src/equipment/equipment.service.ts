@@ -26,33 +26,33 @@ export class EquipmentService {
     if (managedTypes && managedTypes.length > 0) {
       return managedTypes.map((type: any) => ({
         id: type.id,
-        equipmentType: type.name,
+        equipment_type: type.name,
         code: type.code,
         category: type.category,
-        isActive: type.isActive,
+        is_active: type.is_active,
       }));
     }
 
     const { data: equipmentData, error: eqErr } = await this.supabase.client
       .from('equipment')
-      .select('equipmentType')
-      .order('equipmentType', { ascending: true });
+      .select('equipment_type')
+      .order('equipment_type', { ascending: true });
 
     if (eqErr) throw eqErr;
 
-    const unique = [...new Set((equipmentData ?? []).map((e: any) => e.equipmentType))];
-    return unique.map((t) => ({ equipmentType: t }));
+    const unique = [...new Set((equipmentData ?? []).map((e: any) => e.equipment_type))];
+    return unique.map((t) => ({ equipment_type: t }));
   }
 
-  async getEquipmentByBuilding(buildingId: string, equipmentType?: string) {
+  async getEquipmentByBuilding(building_id: string, equipment_type?: string) {
     let query = this.supabase.client
       .from('equipment')
       .select('*, buildings(name), equipment_types(name, code, category)')
-      .eq('buildingId', buildingId)
-      .order('equipmentCode', { ascending: true });
+      .eq('building_id', building_id)
+      .order('equipment_code', { ascending: true });
 
-    if (equipmentType) {
-      query = query.eq('equipmentType', equipmentType);
+    if (equipment_type) {
+      query = query.eq('equipment_type', equipment_type);
     }
 
     const { data, error } = await query;

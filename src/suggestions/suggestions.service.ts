@@ -16,7 +16,7 @@ export class SuggestionsService {
   async suggest(
     field: string,
     query: string,
-    equipmentType?: string,
+    equipment_type?: string,
     limit = 5,
   ): Promise<string[]> {
     if (field === 'parts') {
@@ -26,7 +26,7 @@ export class SuggestionsService {
     const column = FIELD_COLUMN_MAP[field];
     if (!column) return [];
 
-    return this.suggestTextField(column, query, equipmentType, limit, field);
+    return this.suggestTextField(column, query, equipment_type, limit, field);
   }
 
   /**
@@ -55,20 +55,20 @@ export class SuggestionsService {
   private async suggestTextField(
     column: string,
     query: string,
-    equipmentType?: string,
+    equipment_type?: string,
     limit = 5,
     field?: string,
   ): Promise<string[]> {
     let dbQuery = this.supabase.client
       .from('maintenance_reports')
-      .select(`${column}, equipment(equipmentType)`)
+      .select(`${column}, equipment(equipment_type)`)
       .not(column, 'is', null)
       .ilike(column, `%${query}%`)
-      .order('submittedAt', { ascending: false })
+      .order('submitted_at', { ascending: false })
       .limit(MAX_RAW_ROWS);
 
-    if (equipmentType) {
-      dbQuery = dbQuery.eq('equipment.equipmentType', equipmentType);
+    if (equipment_type) {
+      dbQuery = dbQuery.eq('equipment.equipment_type', equipment_type);
     }
 
     const { data, error } = await dbQuery;
@@ -95,9 +95,9 @@ export class SuggestionsService {
   private async suggestParts(query: string, limit = 5): Promise<string[]> {
     const { data, error } = await this.supabase.client
       .from('maintenance_reports')
-      .select('partsUsed')
-      .not('partsUsed', 'is', null)
-      .order('submittedAt', { ascending: false })
+      .select('parts_used')
+      .not('parts_used', 'is', null)
+      .order('submitted_at', { ascending: false })
       .limit(MAX_RAW_ROWS);
 
     if (error || !data) return [];
@@ -106,7 +106,7 @@ export class SuggestionsService {
     const lowerQuery = query.toLowerCase();
 
     for (const row of data) {
-      const parts = row.partsUsed as Array<{ name: string }> | null;
+      const parts = row.parts_used as Array<{ name: string }> | null;
       if (!parts) continue;
       for (const part of parts) {
         const name = part.name?.trim();

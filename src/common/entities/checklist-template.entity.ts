@@ -29,15 +29,15 @@ export class ChecklistTemplate {
   categories!: ChecklistTemplateCategory[];
 
   @Column({ type: 'boolean', default: true })
-  isActive!: boolean;
+  is_active!: boolean;
 
   @ManyToOne(() => EquipmentType, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'equipment_type_id' })
-  equipmentType!: EquipmentType;
+  equipment_type!: EquipmentType;
 
   @CreateDateColumn({ type: 'timestamp without time zone' })
-  createdAt!: Date;
+  created_at!: Date;
 
   @UpdateDateColumn({ type: 'timestamp without time zone' })
-  updatedAt!: Date;
+  updated_at!: Date;
 }

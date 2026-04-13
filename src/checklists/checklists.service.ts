@@ -23,8 +23,8 @@ export class ChecklistsService {
       .from('checklist_templates')
       .select('*')
       .eq('equipment_type_id', eqType.id)
-      .eq('isActive', true)
-      .order('updatedAt', { ascending: false })
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false })
       .limit(1)
       .single();
 
@@ -35,15 +35,15 @@ export class ChecklistsService {
       name: template.name,
       description: template.description,
       categories: template.categories ?? [],
-      isActive: template.isActive,
-      equipmentType: {
+      is_active: template.is_active,
+      equipment_type: {
         id: eqType.id,
         name: eqType.name,
         code: eqType.code,
         category: eqType.category,
       },
-      createdAt: template.createdAt,
-      updatedAt: template.updatedAt,
+      created_at: template.created_at,
+      updated_at: template.updated_at,
     };
   }
 }

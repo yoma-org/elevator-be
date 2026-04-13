@@ -9,7 +9,7 @@ export class SuggestionsController {
   async getSuggestions(
     @Query('field') field?: string,
     @Query('q') query?: string,
-    @Query('equipmentType') equipmentType?: string,
+    @Query('equipment_type') equipment_type?: string,
     @Query('limit') limit?: string,
   ) {
     if (!field || !query || query.trim().length < 2) {
@@ -21,7 +21,7 @@ export class SuggestionsController {
     const data = await this.suggestionsService.suggest(
       field,
       query.trim(),
-      equipmentType?.trim() || undefined,
+      equipment_type?.trim() || undefined,
       maxResults,
     );
 

@@ -36,7 +36,7 @@ type MaintenanceReportChecklistCategory = {
 };
 
 type MaintenanceReportChecklistResults = {
-  equipmentType: string | null;
+  equipment_type: string | null;
   templateName: string | null;
   checkedCount: number;
   totalCount: number;
@@ -57,16 +57,16 @@ export class MaintenanceReport {
   equipment: Equipment;
 
   @Column({ type: 'varchar', length: 20, unique: true, nullable: true })
-  reportCode: string | null;
+  report_code: string | null;
 
   @Column({ type: 'varchar', length: 120 })
-  maintenanceType: string;
+  maintenance_type: string;
 
   @Column({ type: 'timestamp without time zone' })
-  arrivalDateTime: Date;
+  arrival_date_time: Date;
 
   @Column({ type: 'varchar', length: 120 })
-  technicianName: string;
+  technician_name: string;
 
   @Column({ type: 'varchar', length: 40, default: 'pending' })
   status: string;
@@ -75,19 +75,19 @@ export class MaintenanceReport {
   priority: string;
 
   @Column({ type: 'varchar', length: 120, nullable: true })
-  assignedTo: string | null;
+  assigned_to: string | null;
 
   @Column({ type: 'text', nullable: true })
   findings: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
-  checklistResults: MaintenanceReportChecklistResults | null;
+  checklist_results: MaintenanceReportChecklistResults | null;
 
   @Column({ type: 'text', nullable: true })
-  workPerformed: string | null;
+  work_performed: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
-  partsUsed: Array<{ name: string; quantity: number }> | null;
+  parts_used: Array<{ name: string; quantity: number; status?: 'replaced' | 'needs-replacement' }> | null;
 
   @Column({ type: 'text', nullable: true })
   remarks: string | null;
@@ -96,20 +96,20 @@ export class MaintenanceReport {
   photos: MaintenanceReportPhoto[] | null;
 
   @Column({ type: 'text', nullable: true })
-  technicianSignature: string | null;
+  technician_signature: string | null;
 
   @Column({ type: 'text', nullable: true })
-  customerSignature: string | null;
+  customer_signature: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
-  internalNotes: MaintenanceReportNote[] | null;
+  internal_notes: MaintenanceReportNote[] | null;
 
   @Column({ type: 'timestamp without time zone', default: () => 'CURRENT_TIMESTAMP' })
-  submittedAt: Date;
+  submitted_at: Date;
 
   @CreateDateColumn({ type: 'timestamp without time zone' })
-  createdAt: Date;
+  created_at: Date;
 
   @UpdateDateColumn({ type: 'timestamp without time zone' })
-  updatedAt: Date;
+  updated_at: Date;
 }

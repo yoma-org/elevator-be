@@ -18,5 +18,5 @@ export class EquipmentType {
   category: string | null;
 
   @Column({ type: 'boolean', default: true })
-  isActive: boolean;
+  is_active: boolean;
 }

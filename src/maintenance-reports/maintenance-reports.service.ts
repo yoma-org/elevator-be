@@ -24,22 +24,22 @@ export class MaintenanceReportsService {
 
   private async generateUniqueReportCode(): Promise<string> {
     for (let attempt = 0; attempt < REPORT_CODE_MAX_ATTEMPTS; attempt += 1) {
-      const reportCode = this.buildReportCode();
+      const report_code = this.buildReportCode();
       const { data } = await this.supabase.client
         .from('maintenance_reports')
         .select('id')
-        .eq('reportCode', reportCode)
+        .eq('report_code', report_code)
         .limit(1);
 
       if (!data || data.length === 0) {
-        return reportCode;
+        return report_code;
       }
     }
     throw new InternalServerErrorException('Could not generate a unique report code');
   }
 
   private normalizeChecklistResults(
-    input: CreateMaintenanceReportDto['checklistResults'],
+    input: CreateMaintenanceReportDto['checklist_results'],
     fallbackEquipmentType?: string | null,
   ) {
     if (!input) return null;
@@ -63,7 +63,7 @@ export class MaintenanceReportsService {
     const checkedCount = categories.reduce((sum, g) => sum + g.items.filter((i) => i.checked).length, 0);
 
     return {
-      equipmentType: input.equipmentType?.trim() || fallbackEquipmentType || null,
+      equipment_type: input.equipment_type?.trim() || fallbackEquipmentType || null,
       templateName: input.templateName?.trim() || null,
       checkedCount,
       totalCount,
@@ -75,7 +75,7 @@ export class MaintenanceReportsService {
     const { data: building } = await this.supabase.client
       .from('buildings')
       .select('*')
-      .eq('id', payload.buildingId)
+      .eq('id', payload.building_id)
       .single();
     if (!building) throw new NotFoundException('Building not found');
 
@@ -84,7 +84,7 @@ export class MaintenanceReportsService {
       .select('*')
       .eq('id', payload.equipmentId)
       .single();
-    if (!equipment || equipment.buildingId !== building.id) {
+    if (!equipment || equipment.building_id !== building.id) {
       throw new NotFoundException('Equipment not found for selected building');
     }
 
@@ -99,41 +99,42 @@ export class MaintenanceReportsService {
         })) ?? [];
 
     const normalizedChecklistResults = this.normalizeChecklistResults(
-      payload.checklistResults,
-      equipment.equipmentType,
+      payload.checklist_results,
+      equipment.equipment_type,
     );
 
-    const reportCode = await this.generateUniqueReportCode();
+    const report_code = await this.generateUniqueReportCode();
 
     const { data: report, error: insertErr } = await this.supabase.client
       .from('maintenance_reports')
       .insert({
         building_id: building.id,
         equipment_id: equipment.id,
-        reportCode,
-        maintenanceType: payload.maintenanceType,
-        arrivalDateTime: new Date(payload.arrivalDateTime).toISOString(),
-        technicianName: payload.technicianName,
+        report_code,
+        maintenance_type: payload.maintenance_type,
+        arrival_date_time: new Date(payload.arrival_date_time).toISOString(),
+        technician_name: payload.technician_name,
         status: INITIAL_REPORT_STATUS,
         priority: DEFAULT_REPORT_PRIORITY,
-        assignedTo: payload.technicianName?.trim() || null,
+        assigned_to: payload.technician_name?.trim() || null,
         findings:
           payload.findings ??
           (normalizedChecklistResults
             ? `${normalizedChecklistResults.checkedCount}/${normalizedChecklistResults.totalCount} checklist items checked`
             : null),
-        checklistResults: normalizedChecklistResults,
-        workPerformed: payload.workPerformed ?? null,
-        partsUsed:
-          payload.partsUsed?.map((part) => ({
+        checklist_results: normalizedChecklistResults,
+        work_performed: payload.work_performed ?? null,
+        parts_used:
+          payload.parts_used?.map((part) => ({
             name: part.name,
             quantity: Number(part.quantity),
+            status: part.status ?? 'replaced',
           })) ?? null,
         remarks: payload.remarks ?? null,
         photos: normalizedPhotos.length > 0 ? normalizedPhotos : null,
-        technicianSignature: payload.technicianSignature ?? null,
-        customerSignature: payload.customerSignature ?? null,
-        internalNotes: [
+        technician_signature: payload.technician_signature ?? null,
+        customer_signature: payload.customer_signature ?? null,
+        internal_notes: [
           {
             id: randomUUID(),
             at: new Date().toISOString(),
@@ -153,11 +154,11 @@ export class MaintenanceReportsService {
   async findAll(from?: string, to?: string, status?: string) {
     let query = this.supabase.client
       .from('maintenance_reports')
-      .select('*, buildings(name), equipment(equipmentCode, equipmentType)')
-      .order('createdAt', { ascending: false });
+      .select('*, buildings(name), equipment(equipment_code, equipment_type)')
+      .order('created_at', { ascending: false });
 
-    if (from) query = query.gte('arrivalDateTime', new Date(from).toISOString());
-    if (to) query = query.lte('arrivalDateTime', new Date(to + 'T23:59:59').toISOString());
+    if (from) query = query.gte('arrival_date_time', new Date(from).toISOString());
+    if (to) query = query.lte('arrival_date_time', new Date(to + 'T23:59:59').toISOString());
     if (status === 'myQueue') {
       query = query.not('status', 'in', '("invoice-ready","closed","cancelled")');
     } else if (status && status !== 'all') {
@@ -169,14 +170,14 @@ export class MaintenanceReportsService {
     return data ?? [];
   }
 
-  async findByCode(reportCode: string) {
+  async findByCode(report_code: string) {
     const { data, error } = await this.supabase.client
       .from('maintenance_reports')
-      .select('*, buildings(name), equipment(equipmentCode, equipmentType)')
-      .eq('reportCode', reportCode)
+      .select('*, buildings(name), equipment(equipment_code, equipment_type)')
+      .eq('report_code', report_code)
       .single();
 
-    if (error || !data) throw new NotFoundException(`Report ${reportCode} not found`);
+    if (error || !data) throw new NotFoundException(`Report ${report_code} not found`);
     return data;
   }
 
@@ -189,8 +190,8 @@ export class MaintenanceReportsService {
 
     // Helper to apply shared date/status filters
     const applyFilters = (query: any) => {
-      if (from) query = query.gte('arrivalDateTime', new Date(from).toISOString());
-      if (to) query = query.lte('arrivalDateTime', new Date(to + 'T23:59:59').toISOString());
+      if (from) query = query.gte('arrival_date_time', new Date(from).toISOString());
+      if (to) query = query.lte('arrival_date_time', new Date(to + 'T23:59:59').toISOString());
       return query;
     };
 
@@ -203,8 +204,8 @@ export class MaintenanceReportsService {
     let monthQuery = this.supabase.client
       .from('maintenance_reports')
       .select('id', { count: 'exact', head: true })
-      .gte('arrivalDateTime', startOfMonth)
-      .lt('arrivalDateTime', startOfNextMonth);
+      .gte('arrival_date_time', startOfMonth)
+      .lt('arrival_date_time', startOfNextMonth);
     monthQuery = applyFilters(monthQuery);
 
     let activeQuery = this.supabase.client
@@ -226,8 +227,92 @@ export class MaintenanceReportsService {
     };
   }
 
+  async getManagementSchedule() {
+    const { data, error } = await this.supabase.client
+      .from('maintenance_reports')
+      .select('id, arrival_date_time, maintenance_type, technician_name, status, equipment_id, equipment:equipment_id(equipment_type, equipment_code)')
+      .order('arrival_date_time', { ascending: true });
+
+    if (error) throw new InternalServerErrorException(error.message);
+
+    // Group visits by equipment to compute frequency
+    const equipmentVisits: Record<string, Date[]> = {};
+    for (const r of data ?? []) {
+      if (!equipmentVisits[r.equipment_id]) equipmentVisits[r.equipment_id] = [];
+      equipmentVisits[r.equipment_id].push(new Date(r.arrival_date_time));
+    }
+
+    const rows = (data ?? []).map((r) => {
+      const eq = r.equipment as any;
+      const visits = equipmentVisits[r.equipment_id] ?? [];
+      let frequency = 'N/A';
+
+      if (visits.length <= 1) {
+        // Only one visit — frequency cannot be calculated
+        frequency = '—';
+      } else {
+        const sorted = visits.map(d => d.getTime()).sort((a, b) => a - b);
+        const spanMs = sorted[sorted.length - 1] - sorted[0];
+        const intervals = visits.length - 1;
+        const avgWeeks = Math.round(spanMs / (7 * 86400 * 1000) / intervals);
+        const pluralize = (n: number, unit: string) => `${n} ${unit}${n > 1 ? 's' : ''}`;
+
+        if (avgWeeks === 0) {
+          // Less than 1 week interval — show in days (minimum 1 day)
+          const avgDays = Math.max(1, Math.round(spanMs / (86400 * 1000) / intervals));
+          frequency = pluralize(avgDays, 'Day');
+        } else if (avgWeeks < 4) {
+          frequency = pluralize(avgWeeks, 'Week');
+        } else {
+          const avgMonths = Math.round(spanMs / (30 * 86400 * 1000) / intervals);
+          if (avgMonths >= 12) {
+            const avgYears = Math.round(spanMs / (365 * 86400 * 1000) / intervals);
+            frequency = pluralize(avgYears, 'Year');
+          } else {
+            frequency = pluralize(avgMonths, 'Month');
+          }
+        }
+      }
+
+      // Format date as 'DD Mon YYYY' to match SQL TO_CHAR and enable dedup
+      const d = new Date(r.arrival_date_time);
+      const day = String(d.getDate()).padStart(2, '0');
+      const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+      const year = d.getFullYear();
+      const dateStr = `${day} ${mon} ${year}`;
+
+      return {
+        date: dateStr,
+        equipment_type: eq?.equipment_type ?? '',
+        equipment_code: eq?.equipment_code ?? '',
+        maintenance_type: r.maintenance_type,
+        frequency,
+        technician_name: r.technician_name,
+        status: (r.status ?? '').toUpperCase(),
+      };
+    });
+
+    // Deduplicate (SELECT DISTINCT on all fields)
+    const seen = new Set<string>();
+    const unique = rows.filter((r) => {
+      const key = `${r.date}|${r.equipment_type}|${r.equipment_code}|${r.maintenance_type}|${r.frequency}|${r.technician_name}|${r.status}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Sort: date ASC → equipment_type → equipment_code (matches SQL ORDER BY)
+    return unique.sort((a, b) => {
+      const da = new Date(a.date).getTime();
+      const db_ = new Date(b.date).getTime();
+      if (da !== db_) return da - db_;
+      if (a.equipment_type !== b.equipment_type) return a.equipment_type.localeCompare(b.equipment_type);
+      return a.equipment_code.localeCompare(b.equipment_code);
+    });
+  }
+
   async createCbsCall(payload: {
-    buildingId: string;
+    building_id: string;
     equipmentId: string;
     calledPerson: string;
     calledTime: string;
@@ -236,7 +321,7 @@ export class MaintenanceReportsService {
     const { data: building } = await this.supabase.client
       .from('buildings')
       .select('*')
-      .eq('id', payload.buildingId)
+      .eq('id', payload.building_id)
       .single();
     if (!building) throw new NotFoundException('Building not found');
 
@@ -245,26 +330,26 @@ export class MaintenanceReportsService {
       .select('*')
       .eq('id', payload.equipmentId)
       .single();
-    if (!equipment || equipment.buildingId !== building.id) {
+    if (!equipment || equipment.building_id !== building.id) {
       throw new NotFoundException('Equipment not found for selected building');
     }
 
-    const reportCode = await this.generateUniqueReportCode();
+    const report_code = await this.generateUniqueReportCode();
 
     const { data: report, error: insertErr } = await this.supabase.client
       .from('maintenance_reports')
       .insert({
         building_id: building.id,
         equipment_id: equipment.id,
-        reportCode,
-        maintenanceType: 'CBS Call',
-        arrivalDateTime: new Date(payload.calledTime).toISOString(),
-        technicianName: 'Unassigned',
+        report_code,
+        maintenance_type: 'CBS Call',
+        arrival_date_time: new Date(payload.calledTime).toISOString(),
+        technician_name: 'Unassigned',
         status: 'received',
         priority: 'Medium',
-        assignedTo: null,
+        assigned_to: null,
         findings: payload.issue,
-        internalNotes: [
+        internal_notes: [
           {
             id: randomUUID(),
             at: new Date().toISOString(),
@@ -282,10 +367,10 @@ export class MaintenanceReportsService {
   }
 
   async updateDetail(
-    reportCode: string,
+    report_code: string,
     body: { equipmentId?: string },
   ) {
-    const existing = await this.findByCode(reportCode);
+    const existing = await this.findByCode(report_code);
     const editable = ['pc-review', 'comm-review', 'pending', 'completed', 'commercial-review'];
     if (!editable.includes(existing.status)) {
       throw new Error('Work order is not in an editable status');
@@ -295,15 +380,15 @@ export class MaintenanceReportsService {
     if (body.equipmentId) updates.equipment_id = body.equipmentId;
 
     const updatedNotes = [
-      ...(existing.internalNotes ?? []),
+      ...(existing.internal_notes ?? []),
       { id: randomUUID(), at: new Date().toISOString(), author: 'ADMIN', kind: 'system', text: 'Equipment updated by admin' },
     ];
-    updates.internalNotes = updatedNotes;
+    updates.internal_notes = updatedNotes;
 
     const { data: report, error } = await this.supabase.client
       .from('maintenance_reports')
       .update(updates)
-      .eq('reportCode', reportCode)
+      .eq('report_code', report_code)
       .select()
       .single();
 
@@ -312,13 +397,13 @@ export class MaintenanceReportsService {
   }
 
   async addNote(
-    reportCode: string,
+    report_code: string,
     body: { text: string; author?: string; kind?: string },
   ) {
-    const existing = await this.findByCode(reportCode);
+    const existing = await this.findByCode(report_code);
 
     const updatedNotes = [
-      ...(existing.internalNotes ?? []),
+      ...(existing.internal_notes ?? []),
       {
         id: randomUUID(),
         at: new Date().toISOString(),
@@ -330,8 +415,8 @@ export class MaintenanceReportsService {
 
     const { data: report, error } = await this.supabase.client
       .from('maintenance_reports')
-      .update({ internalNotes: updatedNotes })
-      .eq('reportCode', reportCode)
+      .update({ internal_notes: updatedNotes })
+      .eq('report_code', report_code)
       .select()
       .single();
 
@@ -339,11 +424,11 @@ export class MaintenanceReportsService {
     return report;
   }
 
-  async updateStatus(reportCode: string, status: string, author?: string) {
-    const existing = await this.findByCode(reportCode);
+  async updateStatus(report_code: string, status: string, author?: string) {
+    const existing = await this.findByCode(report_code);
 
     const updatedNotes = [
-      ...(existing.internalNotes ?? []),
+      ...(existing.internal_notes ?? []),
       {
         id: randomUUID(),
         at: new Date().toISOString(),
@@ -355,8 +440,8 @@ export class MaintenanceReportsService {
 
     const { data: report, error } = await this.supabase.client
       .from('maintenance_reports')
-      .update({ status, internalNotes: updatedNotes })
-      .eq('reportCode', reportCode)
+      .update({ status, internal_notes: updatedNotes })
+      .eq('report_code', report_code)
       .select()
       .single();
 

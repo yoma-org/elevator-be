@@ -16,13 +16,13 @@ export class Building {
   address: string | null;
 
   @Column({ type: 'varchar', length: 120, nullable: true })
-  contactName: string | null;
+  contact_name: string | null;
 
   @Column({ type: 'varchar', length: 40, nullable: true })
-  contactPhone: string | null;
+  contact_phone: string | null;
 
   @Column({ type: 'boolean', default: true })
-  isActive: boolean;
+  is_active: boolean;
 
   @OneToMany(() => Equipment, (equipment) => equipment.building)
   equipment: Equipment[];

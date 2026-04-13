@@ -2,7 +2,7 @@
  * Server-side permission matrix — mirrors frontend-next/lib/permissions.ts
  */
 
-export type AdminRole = 'operation' | 'mnt-manager' | 'pc-team' | 'commercial';
+export type AdminRole = 'operation' | 'mnt-manager' | 'pc-team' | 'commercial' | 'management';
 export type PermissionAction = 'view' | 'approve' | 'comment' | 'review' | 'download';
 export type ReportStatus = 'received' | 'active' | 'submitted' | 'pc-review' | 'comm-review' | 'invoice-ready' | 'closed';
 
@@ -33,6 +33,13 @@ const PERMISSIONS: Record<AdminRole, Partial<Record<ReportStatus, PermissionActi
   commercial: {
     'comm-review': ['review', 'approve', 'comment'],
     'invoice-ready': ['view', 'approve', 'download'],
+    closed: ['view'],
+  },
+  management: {
+    received: ['view'],
+    'pc-review': ['view'],
+    'comm-review': ['view'],
+    'invoice-ready': ['view'],
     closed: ['view'],
   },
 };
