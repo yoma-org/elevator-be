@@ -122,7 +122,7 @@ export class BatchService {
           .from('equipment')
           .select('id')
           .eq('building_id', building_id)
-          .eq('equipment_code', row.equipment_code.trim())
+          .eq('code', row.equipment_code.trim())
           .limit(1);
 
         if (existing && existing.length > 0) {
@@ -134,9 +134,9 @@ export class BatchService {
           .from('equipment')
           .insert({
             building_id,
-            equipment_type: row.equipment_type.trim(),
+            name: row.equipment_type.trim(),
             equipment_type_id: typeId,
-            equipment_code: row.equipment_code.trim(),
+            code: row.equipment_code.trim(),
             serial_number: row.serial_number?.trim() || null,
             brand: row.brand?.trim() || null,
             model: row.model?.trim() || null,
@@ -149,7 +149,7 @@ export class BatchService {
         if (error) {
           results.push({ row: i + 1, status: 'error', message: error.message });
         } else {
-          results.push({ row: i + 1, status: 'created', message: `Equipment "${data.equipment_code}" created`, data });
+          results.push({ row: i + 1, status: 'created', message: `Equipment "${data.code}" created`, data });
         }
       } catch (err: any) {
         results.push({ row: i + 1, status: 'error', message: err.message ?? 'Unknown error' });

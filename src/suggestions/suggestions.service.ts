@@ -61,14 +61,14 @@ export class SuggestionsService {
   ): Promise<string[]> {
     let dbQuery = this.supabase.client
       .from('maintenance_reports')
-      .select(`${column}, equipment(equipment_type)`)
+      .select(`${column}, equipment(equipment_type:name)`)
       .not(column, 'is', null)
       .ilike(column, `%${query}%`)
       .order('submitted_at', { ascending: false })
       .limit(MAX_RAW_ROWS);
 
     if (equipment_type) {
-      dbQuery = dbQuery.eq('equipment.equipment_type', equipment_type);
+      dbQuery = dbQuery.eq('equipment.name', equipment_type);
     }
 
     const { data, error } = await dbQuery;

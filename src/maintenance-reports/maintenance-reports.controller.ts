@@ -1,9 +1,12 @@
 import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CreateMaintenanceReportDto } from '../common/dto/create-maintenance-report.dto';
 import { MaintenanceReportsService } from './maintenance-reports.service';
 import { AdminAuthGuard } from '../admin-auth/admin-auth.guard';
 import { can, canView, NEXT_STATUS } from '../admin-auth/permissions';
 
+@ApiTags('maintenance-reports')
+@ApiBearerAuth('admin-jwt')
 @Controller('maintenance-reports')
 export class MaintenanceReportsController {
   constructor(private readonly maintenanceReportsService: MaintenanceReportsService) {}

@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { MmprService } from './mmpr.service';
 import { AdminAuthGuard } from '../admin-auth/admin-auth.guard';
 
+@ApiTags('mmpr')
+@ApiBearerAuth('admin-jwt')
 @Controller('mmpr')
 export class MmprController {
   constructor(private readonly mmprService: MmprService) {}

@@ -35,8 +35,8 @@ export class EquipmentService {
 
     const { data: equipmentData, error: eqErr } = await this.supabase.client
       .from('equipment')
-      .select('equipment_type')
-      .order('equipment_type', { ascending: true });
+      .select('equipment_type:name')
+      .order('name', { ascending: true });
 
     if (eqErr) throw eqErr;
 
@@ -47,12 +47,12 @@ export class EquipmentService {
   async getEquipmentByBuilding(building_id: string, equipment_type?: string) {
     let query = this.supabase.client
       .from('equipment')
-      .select('*, buildings(name), equipment_types(name, code, category)')
+      .select('*, equipment_type:name, equipment_code:code, buildings(name), equipment_types(name, code, category)')
       .eq('building_id', building_id)
-      .order('equipment_code', { ascending: true });
+      .order('code', { ascending: true });
 
     if (equipment_type) {
-      query = query.eq('equipment_type', equipment_type);
+      query = query.eq('name', equipment_type);
     }
 
     const { data, error } = await query;

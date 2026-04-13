@@ -160,7 +160,7 @@ export class MaintenanceReportsService {
 
     const normalizedChecklistResults = this.normalizeChecklistResults(
       payload.checklist_results,
-      equipment.equipment_type,
+      equipment.name,
     );
 
     const report_code = await this.generateUniqueReportCode();
@@ -219,7 +219,7 @@ export class MaintenanceReportsService {
   async findAll(from?: string, to?: string, status?: string) {
     let query = this.supabase.client
       .from('maintenance_reports')
-      .select('*, buildings(name), equipment(equipment_code, equipment_type)')
+      .select('*, buildings(name), equipment(equipment_code:code, equipment_type:name)')
       .order('created_at', { ascending: false });
 
     if (from) query = query.gte('arrival_date_time', new Date(from).toISOString());
@@ -238,7 +238,7 @@ export class MaintenanceReportsService {
   async findByCode(report_code: string) {
     const { data, error } = await this.supabase.client
       .from('maintenance_reports')
-      .select('*, buildings(name), equipment(equipment_code, equipment_type)')
+      .select('*, buildings(name), equipment(equipment_code:code, equipment_type:name)')
       .eq('report_code', report_code)
       .single();
 
@@ -308,7 +308,7 @@ export class MaintenanceReportsService {
 
     const { data, error } = await this.supabase.client
       .from('maintenance_reports')
-      .select('id, arrival_date_time, maintenance_type, technician_name, status, equipment_id, equipment:equipment_id(equipment_type, equipment_code)')
+      .select('id, arrival_date_time, maintenance_type, technician_name, status, equipment_id, equipment:equipment_id(equipment_type:name, equipment_code:code)')
       .order('arrival_date_time', { ascending: true });
 
     if (error) throw new InternalServerErrorException(error.message);

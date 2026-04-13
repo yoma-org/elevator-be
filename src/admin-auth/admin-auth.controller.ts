@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Post, Req, UnauthorizedException } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { AdminAuthService } from './admin-auth.service';
 
+@ApiTags('admin-auth')
 @Controller('admin-auth')
 export class AdminAuthController {
   constructor(private readonly authService: AdminAuthService) {}

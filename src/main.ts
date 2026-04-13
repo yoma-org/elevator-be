@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ExpressAdapter } from '@nestjs/platform-express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import express from 'express';
 
@@ -20,6 +21,29 @@ async function bootstrap() {
   );
   app.enableCors({
     origin: process.env.FRONTEND_ORIGIN ?? '*',
+  });
+
+  // ── Swagger / OpenAPI docs ──
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('YECL Maintenance API')
+    .setDescription('REST API for elevator maintenance reporting and admin dashboard.')
+    .setVersion('1.0.0')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'Admin JWT token' },
+      'admin-jwt',
+    )
+    .addTag('maintenance-reports', 'Submit reports, CBS calls, admin listing & status workflow')
+    .addTag('equipment', 'Buildings & equipment lookups')
+    .addTag('checklists', 'Inspection checklist templates')
+    .addTag('suggestions', 'Auto-complete for findings / parts / remarks')
+    .addTag('mmpr', 'Monthly Maintenance Performance Report')
+    .addTag('batch', 'Bulk import of buildings / equipment')
+    .addTag('admin-auth', 'Admin login + JWT issuance')
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: { persistAuthorization: true },
+    customSiteTitle: 'YECL Maintenance API Docs',
   });
 
   await app.init();

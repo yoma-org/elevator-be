@@ -1,6 +1,8 @@
 import { Body, Controller, Post } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { BatchService } from './batch.service';
 
+@ApiTags('batch')
 @Controller('batch')
 export class BatchController {
   constructor(private readonly batchService: BatchService) {}

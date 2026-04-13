@@ -16,7 +16,7 @@ export class Equipment {
   id: string;
 
   @Column({ type: 'varchar', length: 80 })
-  equipment_type: string;
+  name: string;
 
   @ManyToOne(() => EquipmentType, {
     nullable: true,
@@ -26,7 +26,7 @@ export class Equipment {
   equipmentTypeInfo: EquipmentType | null;
 
   @Column({ type: 'varchar', length: 80 })
-  equipment_code: string;
+  code: string;
 
   @Column({ type: 'varchar', length: 120, nullable: true })
   serial_number: string | null;
