@@ -227,7 +227,20 @@ export class MaintenanceReportsService {
     };
   }
 
-  async getManagementSchedule() {
+  async getManagementSchedule(params: {
+    page?: number;
+    pageSize?: number;
+    sortField?: string;
+    sortDir?: 'asc' | 'desc';
+    search?: string;
+    equipmentType?: string;
+    status?: string;
+  } = {}) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(params.pageSize) || 10));
+    const sortField = params.sortField || 'date';
+    const sortDir = params.sortDir === 'desc' ? 'desc' : 'asc';
+
     const { data, error } = await this.supabase.client
       .from('maintenance_reports')
       .select('id, arrival_date_time, maintenance_type, technician_name, status, equipment_id, equipment:equipment_id(equipment_type, equipment_code)')
@@ -235,20 +248,19 @@ export class MaintenanceReportsService {
 
     if (error) throw new InternalServerErrorException(error.message);
 
-    // Group visits by equipment to compute frequency
+    // Group visits by equipment to compute frequency (needs full data, before pagination)
     const equipmentVisits: Record<string, Date[]> = {};
     for (const r of data ?? []) {
       if (!equipmentVisits[r.equipment_id]) equipmentVisits[r.equipment_id] = [];
       equipmentVisits[r.equipment_id].push(new Date(r.arrival_date_time));
     }
 
-    const rows = (data ?? []).map((r) => {
+    const allRows = (data ?? []).map((r) => {
       const eq = r.equipment as any;
       const visits = equipmentVisits[r.equipment_id] ?? [];
       let frequency = 'N/A';
 
       if (visits.length <= 1) {
-        // Only one visit — frequency cannot be calculated
         frequency = '—';
       } else {
         const sorted = visits.map(d => d.getTime()).sort((a, b) => a - b);
@@ -258,7 +270,6 @@ export class MaintenanceReportsService {
         const pluralize = (n: number, unit: string) => `${n} ${unit}${n > 1 ? 's' : ''}`;
 
         if (avgWeeks === 0) {
-          // Less than 1 week interval — show in days (minimum 1 day)
           const avgDays = Math.max(1, Math.round(spanMs / (86400 * 1000) / intervals));
           frequency = pluralize(avgDays, 'Day');
         } else if (avgWeeks < 4) {
@@ -274,7 +285,6 @@ export class MaintenanceReportsService {
         }
       }
 
-      // Format date as 'DD Mon YYYY' to match SQL TO_CHAR and enable dedup
       const d = new Date(r.arrival_date_time);
       const day = String(d.getDate()).padStart(2, '0');
       const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
@@ -283,6 +293,7 @@ export class MaintenanceReportsService {
 
       return {
         date: dateStr,
+        dateSort: d.getTime(),
         equipment_type: eq?.equipment_type ?? '',
         equipment_code: eq?.equipment_code ?? '',
         maintenance_type: r.maintenance_type,
@@ -292,23 +303,75 @@ export class MaintenanceReportsService {
       };
     });
 
-    // Deduplicate (SELECT DISTINCT on all fields)
+    // Deduplicate
     const seen = new Set<string>();
-    const unique = rows.filter((r) => {
+    let rows = allRows.filter((r) => {
       const key = `${r.date}|${r.equipment_type}|${r.equipment_code}|${r.maintenance_type}|${r.frequency}|${r.technician_name}|${r.status}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
 
-    // Sort: date ASC → equipment_type → equipment_code (matches SQL ORDER BY)
-    return unique.sort((a, b) => {
-      const da = new Date(a.date).getTime();
-      const db_ = new Date(b.date).getTime();
-      if (da !== db_) return da - db_;
-      if (a.equipment_type !== b.equipment_type) return a.equipment_type.localeCompare(b.equipment_type);
-      return a.equipment_code.localeCompare(b.equipment_code);
+    // Server-side filter
+    if (params.equipmentType) {
+      rows = rows.filter((r) => r.equipment_type === params.equipmentType);
+    }
+    if (params.status) {
+      rows = rows.filter((r) => r.status === params.status);
+    }
+    if (params.search) {
+      const q = params.search.toLowerCase();
+      rows = rows.filter((r) =>
+        r.equipment_type.toLowerCase().includes(q) ||
+        r.equipment_code.toLowerCase().includes(q) ||
+        r.technician_name.toLowerCase().includes(q) ||
+        r.maintenance_type.toLowerCase().includes(q),
+      );
+    }
+
+    // Unique values for filter dropdowns (from full filtered-equivalent set)
+    const allEquipmentTypes = [...new Set(allRows.map((r) => r.equipment_type))].filter(Boolean).sort();
+    const allStatuses = [...new Set(allRows.map((r) => r.status))].filter(Boolean).sort();
+
+    // Server-side sort
+    const parseFreq = (f: string): number => {
+      if (!f || f === '—') return Number.MAX_SAFE_INTEGER;
+      const m = f.match(/^(\d+)\s*(Day|Week|Month|Year)s?/i);
+      if (!m) return 0;
+      const n = parseInt(m[1]);
+      const unit = m[2].toLowerCase();
+      if (unit === 'year') return n * 365;
+      if (unit === 'month') return n * 30;
+      if (unit === 'week') return n * 7;
+      return n;
+    };
+
+    rows.sort((a: any, b: any) => {
+      let cmp = 0;
+      if (sortField === 'date') cmp = a.dateSort - b.dateSort;
+      else if (sortField === 'frequency') cmp = parseFreq(a.frequency) - parseFreq(b.frequency);
+      else cmp = String(a[sortField] ?? '').localeCompare(String(b[sortField] ?? ''));
+      return sortDir === 'asc' ? cmp : -cmp;
     });
+
+    // Paginate
+    const total = rows.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * pageSize;
+    const paginated = rows.slice(start, start + pageSize).map(({ dateSort, ...rest }: any) => rest);
+
+    return {
+      data: paginated,
+      total,
+      page: safePage,
+      pageSize,
+      totalPages,
+      filters: {
+        equipmentTypes: allEquipmentTypes,
+        statuses: allStatuses,
+      },
+    };
   }
 
   async createCbsCall(payload: {

@@ -28,8 +28,24 @@ export class MaintenanceReportsController {
 
   @Get('admin/management-schedule')
   @UseGuards(AdminAuthGuard)
-  async getManagementSchedule() {
-    return this.maintenanceReportsService.getManagementSchedule();
+  async getManagementSchedule(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortField') sortField?: string,
+    @Query('sortDir') sortDir?: 'asc' | 'desc',
+    @Query('search') search?: string,
+    @Query('equipmentType') equipmentType?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.maintenanceReportsService.getManagementSchedule({
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      sortField,
+      sortDir,
+      search,
+      equipmentType,
+      status,
+    });
   }
 
   @Get('admin/stats')
