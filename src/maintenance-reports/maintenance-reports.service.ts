@@ -10,9 +10,79 @@ const REPORT_CODE_MAX_ATTEMPTS = 10;
 const INITIAL_REPORT_STATUS = 'pc-review';
 const DEFAULT_REPORT_PRIORITY = 'Medium';
 
+const PHOTO_BUCKET = 'report-photos';
+
 @Injectable()
 export class MaintenanceReportsService {
   constructor(private readonly supabase: SupabaseService) {}
+
+  /**
+   * Upload a single photo to Supabase Storage and return its public URL.
+   * Accepts a base64 data URL and converts it to binary before upload.
+   */
+  private async uploadPhoto(
+    reportCode: string,
+    photo: { name: string; mimeType: string; dataUrl: string },
+  ): Promise<string> {
+    const base64Data = photo.dataUrl.replace(/^data:image\/[\w+.-]+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    const safeName = photo.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = `${reportCode}/${Date.now()}-${safeName}`;
+
+    const { error } = await this.supabase.client
+      .storage
+      .from(PHOTO_BUCKET)
+      .upload(filePath, buffer, {
+        contentType: photo.mimeType,
+        upsert: false,
+      });
+
+    if (error) throw new InternalServerErrorException(`Photo upload failed: ${error.message}`);
+
+    const { data: urlData } = this.supabase.client
+      .storage
+      .from(PHOTO_BUCKET)
+      .getPublicUrl(filePath);
+
+    return urlData.publicUrl;
+  }
+
+  /**
+   * Upload all photos for a report. Skips invalid entries.
+   */
+  private async uploadPhotos(
+    reportCode: string,
+    photos: Array<{ name: string; mimeType: string; size: number; dataUrl: string }>,
+  ): Promise<Array<{ name: string; mimeType: string; size: number; url: string }>> {
+    const uploaded = await Promise.all(
+      photos
+        .filter((p) => p.dataUrl?.startsWith('data:image/'))
+        .map(async (p) => ({
+          name: p.name,
+          mimeType: p.mimeType,
+          size: Number(p.size),
+          url: await this.uploadPhoto(reportCode, p),
+        })),
+    );
+    return uploaded;
+  }
+
+  /**
+   * Upload a signature (base64 PNG) to Storage and return its public URL.
+   * Returns null if input is empty or not a valid data URL.
+   */
+  private async uploadSignature(
+    reportCode: string,
+    kind: 'technician' | 'customer',
+    dataUrl: string | null | undefined,
+  ): Promise<string | null> {
+    if (!dataUrl || !dataUrl.startsWith('data:image/')) return null;
+    return this.uploadPhoto(reportCode, {
+      name: `${kind}-signature.png`,
+      mimeType: 'image/png',
+      dataUrl,
+    });
+  }
 
   private buildReportCode(): string {
     const bytes = randomBytes(REPORT_CODE_LENGTH);
@@ -88,22 +158,17 @@ export class MaintenanceReportsService {
       throw new NotFoundException('Equipment not found for selected building');
     }
 
-    const normalizedPhotos =
-      payload.photos
-        ?.filter((photo) => photo.dataUrl.startsWith('data:image/'))
-        .map((photo) => ({
-          name: photo.name,
-          mimeType: photo.mimeType,
-          size: Number(photo.size),
-          dataUrl: photo.dataUrl,
-        })) ?? [];
-
     const normalizedChecklistResults = this.normalizeChecklistResults(
       payload.checklist_results,
       equipment.equipment_type,
     );
 
     const report_code = await this.generateUniqueReportCode();
+
+    // Upload photos + signatures to Supabase Storage and store URLs (not base64)
+    const normalizedPhotos = await this.uploadPhotos(report_code, payload.photos ?? []);
+    const technicianSignatureUrl = await this.uploadSignature(report_code, 'technician', payload.technician_signature);
+    const customerSignatureUrl = await this.uploadSignature(report_code, 'customer', payload.customer_signature);
 
     const { data: report, error: insertErr } = await this.supabase.client
       .from('maintenance_reports')
@@ -132,8 +197,8 @@ export class MaintenanceReportsService {
           })) ?? null,
         remarks: payload.remarks ?? null,
         photos: normalizedPhotos.length > 0 ? normalizedPhotos : null,
-        technician_signature: payload.technician_signature ?? null,
-        customer_signature: payload.customer_signature ?? null,
+        technician_signature: technicianSignatureUrl,
+        customer_signature: customerSignatureUrl,
         internal_notes: [
           {
             id: randomUUID(),
