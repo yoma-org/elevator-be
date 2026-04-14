@@ -193,6 +193,181 @@ export class RosterImportService {
     }
   }
 
+  // ───────────────────────────────────────────────────────────────────────
+  // CHUNKED IMPORT — for large payloads on serverless platforms (Vercel)
+  // ───────────────────────────────────────────────────────────────────────
+
+  /**
+   * Step 1: Create batch + insert all buildings + equipment_types.
+   * Small payload (always < 100 KB), fast (1-2s).
+   * Returns the batch_id + a name→UUID lookup for buildings & types
+   * so the client can inject FKs into subsequent equipment chunks.
+   */
+  async startBatch(payload: {
+    fileName?: string;
+    buildings: Array<{ name: string; address?: string | null }>;
+    equipmentTypes: Array<{ name: string; code?: string | null }>;
+  }, user: { name?: string; email?: string }) {
+    if (!payload?.buildings || !payload?.equipmentTypes) {
+      throw new BadRequestException('Payload must include buildings and equipmentTypes');
+    }
+
+    const { data: batch, error: batchErr } = await this.supabase.client
+      .from('import_batches')
+      .insert({
+        imported_by: user.name ?? 'Unknown',
+        imported_by_email: user.email ?? null,
+        file_name: payload.fileName ?? null,
+        source: 'roster-excel',
+        stats: { status: 'in_progress' },
+      })
+      .select()
+      .single();
+    if (batchErr || !batch) throw new InternalServerErrorException(batchErr?.message ?? 'Failed to create batch');
+    const batchId = batch.id as string;
+
+    let insertedBuildings = 0;
+    let insertedTypes = 0;
+    const errors: string[] = [];
+
+    // Equipment Types
+    const { data: existingTypes } = await this.supabase.client.from('equipment_types').select('id, name');
+    const typeNameToId: Record<string, string> = {};
+    (existingTypes ?? []).forEach((t: any) => { typeNameToId[String(t.name).trim().toLowerCase()] = t.id; });
+
+    for (const t of payload.equipmentTypes) {
+      const key = t.name.trim().toLowerCase();
+      if (typeNameToId[key]) continue;
+      const { data, error } = await this.supabase.client
+        .from('equipment_types')
+        .insert({ name: t.name.trim(), code: t.code?.trim() || null, import_batch_id: batchId })
+        .select().single();
+      if (error) { errors.push(`type "${t.name}": ${error.message}`); continue; }
+      typeNameToId[key] = data.id;
+      insertedTypes++;
+    }
+
+    // Buildings
+    const { data: existingBuildings } = await this.supabase.client.from('buildings').select('id, name');
+    const buildingNameToId: Record<string, string> = {};
+    (existingBuildings ?? []).forEach((b: any) => { buildingNameToId[String(b.name).trim().toLowerCase()] = b.id; });
+
+    for (const b of payload.buildings) {
+      const key = b.name.trim().toLowerCase();
+      if (buildingNameToId[key]) continue;
+      const { data, error } = await this.supabase.client
+        .from('buildings')
+        .insert({ name: b.name.trim(), address: b.address?.trim() || null, is_active: true, import_batch_id: batchId })
+        .select().single();
+      if (error) { errors.push(`building "${b.name}": ${error.message}`); continue; }
+      buildingNameToId[key] = data.id;
+      insertedBuildings++;
+    }
+
+    return {
+      batchId,
+      inserted: { buildings: insertedBuildings, equipmentTypes: insertedTypes },
+      errors,
+      lookups: { buildingNameToId, typeNameToId },
+    };
+  }
+
+  /**
+   * Step 2 (called multiple times): Insert a chunk of equipment.
+   * Each chunk should be 50-100 records → ~500ms per call.
+   */
+  async importEquipmentChunk(
+    batchId: string,
+    chunk: Array<{
+      buildingName: string;
+      equipmentTypeName: string;
+      code: string;
+      model?: string | null;
+      serialNumber?: string | null;
+      brand?: string | null;
+      location?: string | null;
+    }>,
+  ) {
+    // Verify batch exists
+    const { data: batch } = await this.supabase.client.from('import_batches').select('id').eq('id', batchId).single();
+    if (!batch) throw new NotFoundException('Batch not found');
+
+    // Reload lookups (in case other clients are also importing)
+    const { data: buildings } = await this.supabase.client.from('buildings').select('id, name');
+    const { data: types } = await this.supabase.client.from('equipment_types').select('id, name');
+    const buildingNameToId: Record<string, string> = {};
+    (buildings ?? []).forEach((b: any) => { buildingNameToId[String(b.name).trim().toLowerCase()] = b.id; });
+    const typeNameToId: Record<string, string> = {};
+    (types ?? []).forEach((t: any) => { typeNameToId[String(t.name).trim().toLowerCase()] = t.id; });
+
+    // Existing equipment to skip duplicates
+    const buildingIds = [...new Set(chunk.map((e) => buildingNameToId[e.buildingName.trim().toLowerCase()]).filter(Boolean))];
+    let existingKeys = new Set<string>();
+    if (buildingIds.length > 0) {
+      const { data: existing } = await this.supabase.client
+        .from('equipment').select('code, building_id').in('building_id', buildingIds);
+      (existing ?? []).forEach((e: any) => existingKeys.add(`${e.building_id}|${String(e.code).trim().toLowerCase()}`));
+    }
+
+    let inserted = 0;
+    const errors: string[] = [];
+    const skipped: string[] = [];
+
+    for (const e of chunk) {
+      const buildingId = buildingNameToId[e.buildingName.trim().toLowerCase()];
+      if (!buildingId) { errors.push(`equipment "${e.code}": building "${e.buildingName}" not found`); continue; }
+      const typeId = typeNameToId[e.equipmentTypeName.trim().toLowerCase()] ?? null;
+      const dupKey = `${buildingId}|${e.code.trim().toLowerCase()}`;
+      if (existingKeys.has(dupKey)) { skipped.push(e.code); continue; }
+
+      const { error } = await this.supabase.client.from('equipment').insert({
+        name: e.equipmentTypeName.trim(),
+        code: e.code.trim(),
+        model: e.model?.trim() || null,
+        serial_number: e.serialNumber?.trim() || null,
+        brand: e.brand?.trim() || null,
+        location: e.location?.trim() || null,
+        is_active: true,
+        building_id: buildingId,
+        equipment_type_id: typeId,
+        import_batch_id: batchId,
+      });
+      if (error) { errors.push(`equipment "${e.code}" @ "${e.buildingName}": ${error.message}`); continue; }
+      existingKeys.add(dupKey);
+      inserted++;
+    }
+
+    return { inserted, skipped: skipped.length, errors };
+  }
+
+  /**
+   * Step 3: Mark batch as complete and update stats.
+   */
+  async finalizeBatch(batchId: string) {
+    const { data: batch } = await this.supabase.client.from('import_batches').select('*').eq('id', batchId).single();
+    if (!batch) throw new NotFoundException('Batch not found');
+
+    const [{ count: bCount }, { count: tCount }, { count: eCount }] = await Promise.all([
+      this.supabase.client.from('buildings').select('id', { count: 'exact', head: true }).eq('import_batch_id', batchId),
+      this.supabase.client.from('equipment_types').select('id', { count: 'exact', head: true }).eq('import_batch_id', batchId),
+      this.supabase.client.from('equipment').select('id', { count: 'exact', head: true }).eq('import_batch_id', batchId),
+    ]);
+
+    await this.supabase.client.from('import_batches').update({
+      stats: {
+        status: 'completed',
+        buildings: bCount ?? 0,
+        equipment_types: tCount ?? 0,
+        equipment: eCount ?? 0,
+      },
+    }).eq('id', batchId);
+
+    return {
+      batchId,
+      inserted: { buildings: bCount ?? 0, equipmentTypes: tCount ?? 0, equipment: eCount ?? 0 },
+    };
+  }
+
   /** List all batches ordered newest first. */
   async listBatches() {
     const { data, error } = await this.supabase.client

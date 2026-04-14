@@ -17,13 +17,40 @@ export class RosterImportController {
     return this.rosterImportService.preview(payload);
   }
 
-  /** POST /api/roster-import/import — Create a new batch and insert records */
+  /** POST /api/roster-import/import — Create a new batch and insert records (single request) */
   @Post('import')
   async import(@Body() payload: RosterImportPayload, @Req() req: any) {
     return this.rosterImportService.importBatch(payload, {
       name: req.adminUser?.name,
       email: req.adminUser?.email,
     });
+  }
+
+  /** POST /api/roster-import/start — Step 1: create batch + insert buildings + types */
+  @Post('start')
+  async start(
+    @Body() payload: { fileName?: string; buildings: any[]; equipmentTypes: any[] },
+    @Req() req: any,
+  ) {
+    return this.rosterImportService.startBatch(payload, {
+      name: req.adminUser?.name,
+      email: req.adminUser?.email,
+    });
+  }
+
+  /** POST /api/roster-import/batches/:id/equipment — Step 2: insert chunk of equipment */
+  @Post('batches/:id/equipment')
+  async importEquipmentChunk(
+    @Param('id') batchId: string,
+    @Body() body: { equipment: any[] },
+  ) {
+    return this.rosterImportService.importEquipmentChunk(batchId, body.equipment ?? []);
+  }
+
+  /** POST /api/roster-import/batches/:id/finalize — Step 3: mark batch complete */
+  @Post('batches/:id/finalize')
+  async finalize(@Param('id') batchId: string) {
+    return this.rosterImportService.finalizeBatch(batchId);
   }
 
   /** GET /api/roster-import/batches — List all import batches */
