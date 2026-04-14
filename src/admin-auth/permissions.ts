@@ -63,3 +63,20 @@ export function canView(role: string, status: string): boolean {
   const actions = PERMISSIONS[role as AdminRole]?.[status as ReportStatus];
   return (actions?.length ?? 0) > 0;
 }
+
+/**
+ * Return the full permission matrix for a role: { status → actions[] }.
+ * Used by the login endpoint to ship permissions to the frontend.
+ */
+export function getRolePermissions(role: string): Partial<Record<ReportStatus, PermissionAction[]>> {
+  if (!Object.keys(PERMISSIONS).includes(role)) return {};
+  return PERMISSIONS[role as AdminRole] ?? {};
+}
+
+/**
+ * Return the list of statuses a role has any access to.
+ */
+export function getVisibleStatuses(role: string): ReportStatus[] {
+  if (!Object.keys(PERMISSIONS).includes(role)) return [];
+  return Object.keys(PERMISSIONS[role as AdminRole] ?? {}) as ReportStatus[];
+}

@@ -2,8 +2,10 @@ import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../common/supabase.service';
+import { getRolePermissions, getVisibleStatuses, NEXT_STATUS } from './permissions';
 
-const TOKEN_EXPIRY_SECONDS = 60 * 60 * 24; // 24 hours
+const ACCESS_TOKEN_EXPIRY_SECONDS = 60 * 60; // 1 hour
+const REFRESH_TOKEN_EXPIRY_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
 export type AdminRole = 'operation' | 'mnt-manager' | 'pc-team' | 'commercial' | 'management';
 
@@ -21,9 +23,15 @@ export interface TokenPayload {
   email: string;
   name: string;
   role: AdminRole;
+  typ?: 'access' | 'refresh';
+  jti?: string;
   iat: number;
   exp: number;
 }
+
+// In-memory revocation list — tokens with `jti` in this set are rejected.
+// For production, move to Redis or DB.
+const REVOKED_JTI = new Set<string>();
 
 /**
  * Hardcoded seed users — used as fallback when the admin_users table
@@ -70,33 +78,100 @@ export class AdminAuthService {
     return SEED_USERS.find(u => u.email === email && u.active) ?? null;
   }
 
-  async login(email: string, password: string): Promise<{ token: string; user: Omit<AdminUser, 'active' | 'password'> }> {
-    const user = await this.findUser(email.toLowerCase().trim());
-
-    if (!user || user.password !== password) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
+  private issueTokenPair(user: AdminUser) {
     const now = Math.floor(Date.now() / 1000);
-    const payload: TokenPayload = {
+    const accessPayload: TokenPayload = {
       sub: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
+      typ: 'access',
+      jti: randomUUID(),
       iat: now,
-      exp: now + TOKEN_EXPIRY_SECONDS,
+      exp: now + ACCESS_TOKEN_EXPIRY_SECONDS,
     };
-
-    const token = this.signToken(payload);
+    const refreshPayload: TokenPayload = {
+      sub: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      typ: 'refresh',
+      jti: randomUUID(),
+      iat: now,
+      exp: now + REFRESH_TOKEN_EXPIRY_SECONDS,
+    };
     return {
-      token,
+      accessToken: this.signToken(accessPayload),
+      refreshToken: this.signToken(refreshPayload),
+      accessExpiresIn: ACCESS_TOKEN_EXPIRY_SECONDS,
+      refreshExpiresIn: REFRESH_TOKEN_EXPIRY_SECONDS,
+    };
+  }
+
+  private buildUserProfile(user: AdminUser) {
+    return {
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
         role: user.role,
       },
+      permissions: {
+        role: user.role,
+        matrix: getRolePermissions(user.role),
+        visibleStatuses: getVisibleStatuses(user.role),
+        nextStatus: NEXT_STATUS,
+      },
     };
+  }
+
+  async login(email: string, password: string) {
+    const user = await this.findUser(email.toLowerCase().trim());
+
+    if (!user || user.password !== password) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    return {
+      ...this.issueTokenPair(user),
+      ...this.buildUserProfile(user),
+    };
+  }
+
+  async logout(token: string): Promise<{ success: true }> {
+    try {
+      const payload = this.verifyToken(token);
+      if (payload.jti) REVOKED_JTI.add(payload.jti);
+    } catch {
+      // Token already invalid; no-op.
+    }
+    return { success: true };
+  }
+
+  async refresh(refreshToken: string) {
+    const payload = this.verifyToken(refreshToken);
+    if (payload.typ !== 'refresh') {
+      throw new UnauthorizedException('Not a refresh token');
+    }
+    const user = await this.findUser(payload.email.toLowerCase());
+    if (!user) throw new UnauthorizedException('User no longer exists');
+
+    // Rotate: revoke old refresh jti and issue new pair
+    if (payload.jti) REVOKED_JTI.add(payload.jti);
+    return {
+      ...this.issueTokenPair(user),
+      ...this.buildUserProfile(user),
+    };
+  }
+
+  async getMe(accessToken: string) {
+    const payload = this.verifyToken(accessToken);
+    if (payload.typ && payload.typ !== 'access') {
+      throw new UnauthorizedException('Not an access token');
+    }
+    const user = await this.findUser(payload.email.toLowerCase());
+    if (!user) throw new UnauthorizedException('User no longer exists');
+    return this.buildUserProfile(user);
   }
 
   verifyToken(token: string): TokenPayload {
@@ -120,6 +195,10 @@ export class AdminAuthService {
 
       if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
         throw new Error('Token expired');
+      }
+
+      if (payload.jti && REVOKED_JTI.has(payload.jti)) {
+        throw new Error('Token revoked');
       }
 
       return payload;
