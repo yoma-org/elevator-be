@@ -115,12 +115,11 @@ export class AdminAuthService {
         email: user.email,
         name: user.name,
         role: user.role,
-      },
-      permissions: {
-        role: user.role,
-        matrix: getRolePermissions(user.role),
-        visibleStatuses: getVisibleStatuses(user.role),
-        nextStatus: NEXT_STATUS,
+        permissions: {
+          matrix: getRolePermissions(user.role),
+          visibleStatuses: getVisibleStatuses(user.role),
+          nextStatus: NEXT_STATUS,
+        },
       },
     };
   }
