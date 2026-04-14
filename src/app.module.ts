@@ -10,6 +10,7 @@ import { SuggestionsModule } from './suggestions/suggestions.module';
 import { BatchModule } from './batch/batch.module';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { MmprModule } from './mmpr/mmpr.module';
+import { RosterImportModule } from './roster-import/roster-import.module';
 
 @Global()
 @Module({
@@ -22,6 +23,7 @@ import { MmprModule } from './mmpr/mmpr.module';
     SuggestionsModule,
     BatchModule,
     MmprModule,
+    RosterImportModule,
   ],
   controllers: [AppController],
   providers: [AppService, SupabaseService],
