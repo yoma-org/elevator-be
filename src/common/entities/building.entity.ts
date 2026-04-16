@@ -21,6 +21,9 @@ export class Building {
   @Column({ type: 'varchar', length: 40, nullable: true })
   contact_phone: string | null;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  team: string | null;
+
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 

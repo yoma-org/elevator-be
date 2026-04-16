@@ -162,6 +162,20 @@ export class CreateMaintenanceReportDto {
   photos?: ReportPhotoDto[];
 
   @IsOptional()
+  @IsDateString()
+  completion_date_time?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  customer_name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  customer_title?: string;
+
+  @IsOptional()
   @IsString()
   @Matches(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, {
     message: 'Technician signature must be a valid image data URL',

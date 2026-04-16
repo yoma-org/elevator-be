@@ -4,7 +4,7 @@ import { SupabaseService } from '../common/supabase.service';
 // Payload shapes parsed from Excel by the frontend.
 export interface RosterImportPayload {
   fileName?: string;
-  buildings: Array<{ name: string; address?: string | null }>;
+  buildings: Array<{ name: string; address?: string | null; team?: string | null }>;
   equipmentTypes: Array<{ name: string; code?: string | null }>;
   equipment: Array<{
     buildingName: string;      // looked up against buildings by name
@@ -119,12 +119,19 @@ export class RosterImportService {
 
       for (const b of payload.buildings) {
         const key = b.name.trim().toLowerCase();
-        if (buildingNameToId.has(key)) continue;
+        if (buildingNameToId.has(key)) {
+          // Update team for existing building
+          if (b.team) {
+            await this.supabase.client.from('buildings').update({ team: b.team.trim() }).eq('id', buildingNameToId.get(key));
+          }
+          continue;
+        }
         const { data, error } = await this.supabase.client
           .from('buildings')
           .insert({
             name: b.name.trim(),
             address: b.address?.trim() || null,
+            team: b.team?.trim() || null,
             is_active: true,
             import_batch_id: batchId,
           })
@@ -203,7 +210,7 @@ export class RosterImportService {
    */
   async startBatch(payload: {
     fileName?: string;
-    buildings: Array<{ name: string; address?: string | null }>;
+    buildings: Array<{ name: string; address?: string | null; team?: string | null }>;
     equipmentTypes: Array<{ name: string; code?: string | null }>;
   }, user: { name?: string; email?: string }) {
     if (!payload?.buildings || !payload?.equipmentTypes) {
@@ -256,6 +263,7 @@ export class RosterImportService {
       .map((b) => ({
         name: b.name.trim(),
         address: b.address?.trim() || null,
+        team: b.team?.trim() || null,
         is_active: true,
         import_batch_id: batchId,
       }));
@@ -268,6 +276,15 @@ export class RosterImportService {
       else {
         (created ?? []).forEach((b: any) => { buildingNameToId[String(b.name).trim().toLowerCase()] = b.id; });
         insertedBuildings = created?.length ?? 0;
+      }
+    }
+
+    // Update team for existing buildings (Excel is source of truth for team assignment)
+    for (const b of payload.buildings) {
+      const key = b.name.trim().toLowerCase();
+      const id = buildingNameToId[key];
+      if (id && b.team) {
+        await this.supabase.client.from('buildings').update({ team: b.team.trim() }).eq('id', id);
       }
     }
 

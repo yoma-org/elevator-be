@@ -197,6 +197,9 @@ export class MaintenanceReportsService {
           })) ?? null,
         remarks: payload.remarks ?? null,
         photos: normalizedPhotos.length > 0 ? normalizedPhotos : null,
+        completion_date_time: payload.completion_date_time ? new Date(payload.completion_date_time).toISOString() : null,
+        customer_name: payload.customer_name?.trim() || null,
+        customer_title: payload.customer_title?.trim() || null,
         technician_signature: technicianSignatureUrl,
         customer_signature: customerSignatureUrl,
         internal_notes: [
@@ -219,7 +222,7 @@ export class MaintenanceReportsService {
   async findAll(from?: string, to?: string, status?: string) {
     let query = this.supabase.client
       .from('maintenance_reports')
-      .select('*, buildings(name), equipment(equipment_code:code, equipment_type:name)')
+      .select('*, buildings(name, team), equipment(equipment_code:code, equipment_type:name)')
       .order('created_at', { ascending: false });
 
     if (from) query = query.gte('arrival_date_time', new Date(from).toISOString());
@@ -238,7 +241,7 @@ export class MaintenanceReportsService {
   async findByCode(report_code: string) {
     const { data, error } = await this.supabase.client
       .from('maintenance_reports')
-      .select('*, buildings(name), equipment(equipment_code:code, equipment_type:name)')
+      .select('*, buildings(name, team), equipment(equipment_code:code, equipment_type:name)')
       .eq('report_code', report_code)
       .single();
 
