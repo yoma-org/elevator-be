@@ -28,8 +28,6 @@ export class MmprController {
     @Query('year') yearStr: string,
     @Body()
     body: {
-      break_armature_gap?: unknown[];
-      rope_investigation?: unknown[];
       work_instructions?: unknown[];
       work_details?: unknown[];
       major_repairs?: unknown[];
