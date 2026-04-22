@@ -7,7 +7,7 @@ const FIELD_COLUMN_MAP: Record<string, string> = {
   notes: 'remarks',
 };
 
-const MAX_RAW_ROWS = 100;
+const MAX_RAW_ROWS = 500;
 
 @Injectable()
 export class SuggestionsService {

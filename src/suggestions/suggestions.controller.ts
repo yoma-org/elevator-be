@@ -14,15 +14,19 @@ export class SuggestionsController {
     @Query('equipment_type') equipment_type?: string,
     @Query('limit') limit?: string,
   ) {
-    if (!field || !query || query.trim().length < 2) {
+    if (!field) {
+      return { success: true, data: [] };
+    }
+    // Allow empty query for 'parts' (list all), require 2+ chars for text fields
+    if (field !== 'parts' && (!query || query.trim().length < 2)) {
       return { success: true, data: [] };
     }
 
-    const maxResults = Math.min(Math.max(Number(limit) || 5, 1), 10);
+    const maxResults = Math.min(Math.max(Number(limit) || 5, 1), 500);
 
     const data = await this.suggestionsService.suggest(
       field,
-      query.trim(),
+      query?.trim() ?? '',
       equipment_type?.trim() || undefined,
       maxResults,
     );
