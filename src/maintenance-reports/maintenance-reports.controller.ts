@@ -29,6 +29,28 @@ export class MaintenanceReportsController {
     };
   }
 
+  @Get('admin/equipment-summary')
+  @UseGuards(AdminAuthGuard)
+  async getEquipmentSummary(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortField') sortField?: string,
+    @Query('sortDir') sortDir?: 'asc' | 'desc',
+    @Query('search') search?: string,
+    @Query('equipmentType') equipmentType?: string,
+    @Query('buildingId') buildingId?: string,
+  ) {
+    return this.maintenanceReportsService.getEquipmentSummary({
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      sortField,
+      sortDir,
+      search,
+      equipmentType,
+      buildingId,
+    });
+  }
+
   @Get('admin/management-schedule')
   @UseGuards(AdminAuthGuard)
   async getManagementSchedule(
@@ -38,7 +60,7 @@ export class MaintenanceReportsController {
     @Query('sortDir') sortDir?: 'asc' | 'desc',
     @Query('search') search?: string,
     @Query('equipmentType') equipmentType?: string,
-    @Query('buildingId') buildingId?: string,
+    @Query('status') status?: string,
   ) {
     return this.maintenanceReportsService.getManagementSchedule({
       page: page ? Number(page) : undefined,
@@ -47,7 +69,7 @@ export class MaintenanceReportsController {
       sortDir,
       search,
       equipmentType,
-      buildingId,
+      status,
     });
   }
 

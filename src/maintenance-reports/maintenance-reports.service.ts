@@ -296,14 +296,14 @@ export class MaintenanceReportsService {
   }
 
   /**
-   * Management page — list all equipment that has at least one maintenance record,
+   * Equipment page — list all equipment that has at least one maintenance record,
    * grouped per building, with visit stats.
    *
    * Supabase nested JOIN (option C): query maintenance_reports with embedded equipment →
    * buildings + equipment_types, then aggregate per-equipment in-memory. `!inner` filters
    * out records whose equipment or building link is missing.
    */
-  async getManagementSchedule(params: {
+  async getEquipmentSummary(params: {
     page?: number;
     pageSize?: number;
     sortField?: string;
@@ -439,6 +439,157 @@ export class MaintenanceReportsService {
       filters: {
         buildings: allBuildings,
         equipmentTypes: allEquipmentTypes,
+      },
+    };
+  }
+
+  /**
+   * Management page — per-visit maintenance schedule with computed frequency.
+   * 1 row per maintenance visit. Frequency is avg interval between visits of the same equipment.
+   */
+  async getManagementSchedule(params: {
+    page?: number;
+    pageSize?: number;
+    sortField?: string;
+    sortDir?: 'asc' | 'desc';
+    search?: string;
+    equipmentType?: string;
+    status?: string;
+  } = {}) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(params.pageSize) || 10));
+    const sortField = params.sortField || 'date';
+    const sortDir = params.sortDir === 'desc' ? 'desc' : 'asc';
+
+    const { data, error } = await this.supabase.client
+      .from('maintenance_reports')
+      .select('id, arrival_date_time, maintenance_type, technician_name, status, equipment_id, equipment:equipment_id(equipment_type:name, equipment_code:code)')
+      .order('arrival_date_time', { ascending: true });
+
+    if (error) throw new InternalServerErrorException(error.message);
+
+    // Group visits by equipment to compute frequency (needs full data, before pagination)
+    const equipmentVisits: Record<string, Date[]> = {};
+    for (const r of data ?? []) {
+      if (!equipmentVisits[r.equipment_id]) equipmentVisits[r.equipment_id] = [];
+      equipmentVisits[r.equipment_id].push(new Date(r.arrival_date_time));
+    }
+
+    const allRows = (data ?? []).map((r: any) => {
+      const eq = r.equipment;
+      const visits = equipmentVisits[r.equipment_id] ?? [];
+      let frequency = 'N/A';
+
+      if (visits.length <= 1) {
+        frequency = '—';
+      } else {
+        const sorted = visits.map((d) => d.getTime()).sort((a, b) => a - b);
+        const spanMs = sorted[sorted.length - 1] - sorted[0];
+        const intervals = visits.length - 1;
+        const avgWeeks = Math.round(spanMs / (7 * 86400 * 1000) / intervals);
+        const pluralize = (n: number, unit: string) => `${n} ${unit}${n > 1 ? 's' : ''}`;
+
+        if (avgWeeks === 0) {
+          const avgDays = Math.max(1, Math.round(spanMs / (86400 * 1000) / intervals));
+          frequency = pluralize(avgDays, 'Day');
+        } else if (avgWeeks < 4) {
+          frequency = pluralize(avgWeeks, 'Week');
+        } else {
+          const avgMonths = Math.round(spanMs / (30 * 86400 * 1000) / intervals);
+          if (avgMonths >= 12) {
+            const avgYears = Math.round(spanMs / (365 * 86400 * 1000) / intervals);
+            frequency = pluralize(avgYears, 'Year');
+          } else {
+            frequency = pluralize(avgMonths, 'Month');
+          }
+        }
+      }
+
+      const d = new Date(r.arrival_date_time);
+      const day = String(d.getDate()).padStart(2, '0');
+      const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+      const year = d.getFullYear();
+      const dateStr = `${day} ${mon} ${year}`;
+
+      return {
+        date: dateStr,
+        dateSort: d.getTime(),
+        equipment_type: eq?.equipment_type ?? '',
+        equipment_code: eq?.equipment_code ?? '',
+        maintenance_type: r.maintenance_type,
+        frequency,
+        technician_name: r.technician_name,
+        status: (r.status ?? '').toUpperCase(),
+      };
+    });
+
+    // Deduplicate
+    const seen = new Set<string>();
+    let rows = allRows.filter((r) => {
+      const key = `${r.date}|${r.equipment_type}|${r.equipment_code}|${r.maintenance_type}|${r.frequency}|${r.technician_name}|${r.status}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Server-side filter
+    if (params.equipmentType) {
+      rows = rows.filter((r) => r.equipment_type === params.equipmentType);
+    }
+    if (params.status) {
+      rows = rows.filter((r) => r.status === params.status);
+    }
+    if (params.search) {
+      const q = params.search.toLowerCase();
+      rows = rows.filter((r) =>
+        r.equipment_type.toLowerCase().includes(q) ||
+        r.equipment_code.toLowerCase().includes(q) ||
+        r.technician_name.toLowerCase().includes(q) ||
+        r.maintenance_type.toLowerCase().includes(q),
+      );
+    }
+
+    // Unique values for filter dropdowns (from full dataset)
+    const allEquipmentTypes = [...new Set(allRows.map((r) => r.equipment_type))].filter(Boolean).sort();
+    const allStatuses = [...new Set(allRows.map((r) => r.status))].filter(Boolean).sort();
+
+    // Server-side sort
+    const parseFreq = (f: string): number => {
+      if (!f || f === '—') return Number.MAX_SAFE_INTEGER;
+      const m = f.match(/^(\d+)\s*(Day|Week|Month|Year)s?/i);
+      if (!m) return 0;
+      const n = parseInt(m[1]);
+      const unit = m[2].toLowerCase();
+      if (unit === 'year') return n * 365;
+      if (unit === 'month') return n * 30;
+      if (unit === 'week') return n * 7;
+      return n;
+    };
+
+    rows.sort((a: any, b: any) => {
+      let cmp = 0;
+      if (sortField === 'date') cmp = a.dateSort - b.dateSort;
+      else if (sortField === 'frequency') cmp = parseFreq(a.frequency) - parseFreq(b.frequency);
+      else cmp = String(a[sortField] ?? '').localeCompare(String(b[sortField] ?? ''));
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+
+    // Paginate
+    const total = rows.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * pageSize;
+    const paginated = rows.slice(start, start + pageSize).map(({ dateSort, ...rest }: any) => rest);
+
+    return {
+      data: paginated,
+      total,
+      page: safePage,
+      pageSize,
+      totalPages,
+      filters: {
+        equipmentTypes: allEquipmentTypes,
+        statuses: allStatuses,
       },
     };
   }
