@@ -38,7 +38,7 @@ export class MaintenanceReportsController {
     @Query('sortDir') sortDir?: 'asc' | 'desc',
     @Query('search') search?: string,
     @Query('equipmentType') equipmentType?: string,
-    @Query('status') status?: string,
+    @Query('buildingId') buildingId?: string,
   ) {
     return this.maintenanceReportsService.getManagementSchedule({
       page: page ? Number(page) : undefined,
@@ -47,7 +47,7 @@ export class MaintenanceReportsController {
       sortDir,
       search,
       equipmentType,
-      status,
+      buildingId,
     });
   }
 
