@@ -217,6 +217,17 @@ export class MmprService {
       }),
     }));
 
+    // 7. Stats computed from reports (already sorted ASC)
+    const reportArr = (reports ?? []) as Array<{ arrival_date_time: string | null }>;
+    const arrivalDates = reportArr
+      .map((r) => r.arrival_date_time)
+      .filter((d): d is string => !!d);
+    const stats = {
+      totalVisits: reportArr.length,
+      firstVisit: arrivalDates.length > 0 ? arrivalDates[0] : null,
+      lastVisit: arrivalDates.length > 0 ? arrivalDates[arrivalDates.length - 1] : null,
+    };
+
     return {
       equipment: {
         code: eqAny.code ?? '',
@@ -229,6 +240,7 @@ export class MmprService {
       months: months.map(({ year, month }) => ({ year, month })),
       legend: { v: 'Good', o: 'Adjusted', x: 'Repair or Replace', '-': 'N/A' },
       categories,
+      stats,
     };
   }
 
