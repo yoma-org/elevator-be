@@ -9,6 +9,29 @@ import { AdminAuthGuard } from '../admin-auth/admin-auth.guard';
 export class MmprController {
   constructor(private readonly mmprService: MmprService) {}
 
+  /**
+   * Yearly MMPR matrix (item × month grid).
+   * Defaults: startYear = currentYear-1, startMonth = 1, endYear = currentYear, endMonth = currentMonth.
+   */
+  @Get('yearly-matrix/:equipmentId')
+  @UseGuards(AdminAuthGuard)
+  async getYearlyMatrix(
+    @Param('equipmentId') equipmentId: string,
+    @Query('startYear') startYearStr?: string,
+    @Query('startMonth') startMonthStr?: string,
+    @Query('endYear') endYearStr?: string,
+    @Query('endMonth') endMonthStr?: string,
+  ) {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const startYear = Number(startYearStr) || currentYear - 1;
+    const startMonth = Number(startMonthStr) || 1;
+    const endYear = Number(endYearStr) || currentYear;
+    const endMonth = Number(endMonthStr) || currentMonth;
+    return this.mmprService.getYearlyMatrix(equipmentId, startYear, startMonth, endYear, endMonth);
+  }
+
   /** GET /mmpr/:equipmentId?year=2025 */
   @Get(':equipmentId')
   @UseGuards(AdminAuthGuard)

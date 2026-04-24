@@ -109,6 +109,130 @@ export class MmprService {
   }
 
   /**
+   * Yearly MMPR matrix — for each checklist item × month cell, compute the latest status symbol.
+   * Symbols: v (good), o (adjusted), x (repair/replace), - (N/A), '' (no data)
+   * Item list comes from the canonical checklist template of the equipment type.
+   */
+  async getYearlyMatrix(
+    equipmentId: string,
+    startYear: number,
+    startMonth: number,
+    endYear: number,
+    endMonth: number,
+  ) {
+    const pad = (n: number) => String(n).padStart(2, '0');
+
+    // 1. Equipment + building + type
+    const { data: eq, error: eqErr } = await this.supabase.client
+      .from('equipment')
+      .select('id, code, name, equipment_type_id, buildings(name, team), equipment_types(id, category)')
+      .eq('id', equipmentId)
+      .single();
+    if (eqErr || !eq) throw new NotFoundException('Equipment not found');
+
+    const eqAny = eq as any;
+
+    // 2. Checklist template for the equipment_type
+    const { data: template } = await this.supabase.client
+      .from('checklist_templates')
+      .select('categories')
+      .eq('equipment_type_id', eqAny.equipment_type_id)
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    type TemplateItem = string | { label?: string; no?: string };
+    type TemplateCategory = { category: string; items: TemplateItem[] };
+    const templateCategories: TemplateCategory[] = (template?.categories ?? []) as TemplateCategory[];
+
+    const getItemLabel = (item: TemplateItem): string =>
+      typeof item === 'string' ? item : (item.label ?? '');
+
+    // 3. Reports within the date range
+    const rangeStart = `${startYear}-${pad(startMonth)}-01T00:00:00`;
+    const exclusiveEndMonth = endMonth === 12 ? 1 : endMonth + 1;
+    const exclusiveEndYear = endMonth === 12 ? endYear + 1 : endYear;
+    const rangeEndExclusive = `${exclusiveEndYear}-${pad(exclusiveEndMonth)}-01T00:00:00`;
+
+    const { data: reports } = await this.supabase.client
+      .from('maintenance_reports')
+      .select('arrival_date_time, checklist_results')
+      .eq('equipment_id', equipmentId)
+      .gte('arrival_date_time', rangeStart)
+      .lt('arrival_date_time', rangeEndExclusive)
+      .order('arrival_date_time', { ascending: true });
+
+    // 4. Month axis from (startYear, startMonth) to (endYear, endMonth)
+    const months: Array<{ year: number; month: number; key: string }> = [];
+    let y = startYear, m = startMonth;
+    while (y < endYear || (y === endYear && m <= endMonth)) {
+      months.push({ year: y, month: m, key: `${y}-${pad(m)}` });
+      m += 1;
+      if (m > 12) { m = 1; y += 1; }
+    }
+
+    // 5. Status lookup — iterate reports ASC so latest writes overwrite earlier.
+    //    Key: `${monthKey}|${itemLabelLower}` → symbol
+    const statusSymbol = (raw: string | null | undefined, checked: boolean): string => {
+      const s = (raw ?? '').toLowerCase();
+      if (s.includes('good')) return 'v';
+      if (s.includes('adjust')) return 'o';
+      if (s.includes('repair') || s.includes('replace')) return 'x';
+      if (s.includes('n/a') || s === 'na' || s.includes(' na')) return '-';
+      return checked ? 'v' : '';
+    };
+
+    const lookup = new Map<string, string>();
+    for (const r of (reports ?? []) as any[]) {
+      const ad = r.arrival_date_time as string | null;
+      if (!ad) continue;
+      const [datePart] = ad.split('T');
+      const [yr, mo] = datePart.split('-').map(Number);
+      const monthKey = `${yr}-${pad(mo)}`;
+      const cr = r.checklist_results as any;
+      if (!cr || !Array.isArray(cr.categories)) continue;
+      for (const cat of cr.categories) {
+        for (const item of cat.items ?? []) {
+          const label = (item.label ?? '').toString().trim().toLowerCase();
+          if (!label) continue;
+          const sym = statusSymbol(item.status, !!item.checked);
+          if (!sym) continue;
+          lookup.set(`${monthKey}|${label}`, sym);
+        }
+      }
+    }
+
+    // 6. Build result categories from template
+    const categories = templateCategories.map((cat) => ({
+      category: cat.category,
+      items: (cat.items ?? []).map((rawItem) => {
+        const label = getItemLabel(rawItem);
+        const statuses: Record<string, string> = {};
+        const key = label.trim().toLowerCase();
+        for (const mm of months) {
+          statuses[mm.key] = lookup.get(`${mm.key}|${key}`) ?? '';
+        }
+        return { label, statuses };
+      }),
+    }));
+
+    return {
+      equipment: {
+        code: eqAny.code ?? '',
+        type: eqAny.name ?? '',
+        building_name: eqAny.buildings?.name ?? '',
+        team: eqAny.buildings?.team ?? null,
+        category: eqAny.equipment_types?.category ?? null,
+      },
+      range: { startYear, startMonth, endYear, endMonth },
+      months: months.map(({ year, month }) => ({ year, month })),
+      legend: { v: 'Good', o: 'Adjusted', x: 'Repair or Replace', '-': 'N/A' },
+      categories,
+    };
+  }
+
+  /**
    * Get full MMPR data for PDF generation:
    * combines mmpr record + child tables + aggregated maintenance_reports for the equipment+year.
    */
