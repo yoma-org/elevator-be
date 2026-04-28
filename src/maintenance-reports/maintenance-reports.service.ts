@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'crypto';
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateMaintenanceReportDto } from '../common/dto/create-maintenance-report.dto';
 import { SupabaseService } from '../common/supabase.service';
 
@@ -647,6 +647,156 @@ export class MaintenanceReportsService {
 
     if (insertErr) throw insertErr;
     return report;
+  }
+
+  /**
+   * Admin backfill — create a closed maintenance report for historical data.
+   * Loads the active checklist template for the equipment's type, marks items
+   * as checked based on the labels the admin selected.
+   */
+  /**
+   * Return distinct YYYY-MM-DD dates for which a maintenance_report exists
+   * for the given equipment. Used by Add History modal to disable taken dates.
+   */
+  async getEquipmentMaintenanceDates(equipmentId: string): Promise<string[]> {
+    const { data, error } = await this.supabase.client
+      .from('maintenance_reports')
+      .select('arrival_date_time')
+      .eq('equipment_id', equipmentId);
+    if (error) throw new InternalServerErrorException(error.message);
+    const set = new Set<string>();
+    for (const r of data ?? []) {
+      const t = (r as any).arrival_date_time as string | null;
+      if (!t) continue;
+      set.add(t.split('T')[0]);
+    }
+    return [...set].sort();
+  }
+
+  async createHistoryRecord(input: {
+    buildingId: string;
+    equipmentId: string;
+    completionDateTime: string;
+    items: Array<{ label: string; statuses: string[] }>;
+    createdBy: string;
+  }) {
+    // 1. Validate building + equipment match
+    const { data: equipment } = await this.supabase.client
+      .from('equipment')
+      .select('id, name, code, equipment_type_id, building_id')
+      .eq('id', input.equipmentId)
+      .single();
+    if (!equipment) throw new NotFoundException('Equipment not found');
+    if (equipment.building_id !== input.buildingId) {
+      throw new BadRequestException('Equipment does not belong to the specified building');
+    }
+
+    // 1b. Reject if a report already exists for this equipment on the same date
+    const datePart = input.completionDateTime.split('T')[0];   // 'YYYY-MM-DD'
+    const dayStart = `${datePart}T00:00:00`;
+    const dayEnd = `${datePart}T23:59:59`;
+    const { data: dup } = await this.supabase.client
+      .from('maintenance_reports')
+      .select('report_code, arrival_date_time')
+      .eq('equipment_id', input.equipmentId)
+      .gte('arrival_date_time', dayStart)
+      .lte('arrival_date_time', dayEnd)
+      .limit(1);
+    if (dup && dup.length > 0) {
+      throw new ConflictException(`A maintenance record already exists for this equipment on ${datePart} (report ${dup[0].report_code})`);
+    }
+
+    // 2. Load active checklist template for the equipment type
+    let checklist_results: any = null;
+    if (equipment.equipment_type_id) {
+      const { data: template } = await this.supabase.client
+        .from('checklist_templates')
+        .select('name, categories')
+        .eq('equipment_type_id', equipment.equipment_type_id)
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (template?.categories && Array.isArray(template.categories)) {
+        // Map: lowercased label → list of selected statuses
+        const statusMap = new Map<string, string[]>();
+        for (const item of input.items ?? []) {
+          const key = item.label.trim().toLowerCase();
+          if (!key) continue;
+          const cleaned = (item.statuses ?? []).map((s) => s.trim().toLowerCase()).filter(Boolean);
+          if (cleaned.length > 0) statusMap.set(key, cleaned);
+        }
+
+        let totalCount = 0;
+        let checkedCount = 0;
+        const categories = template.categories.map((cat: any) => ({
+          category: cat.category,
+          items: (cat.items ?? []).map((rawItem: any) => {
+            const label = typeof rawItem === 'string' ? rawItem : (rawItem.label ?? '');
+            const statuses = statusMap.get(label.trim().toLowerCase()) ?? [];
+            const isChecked = statuses.length > 0;
+            totalCount += 1;
+            if (isChecked) checkedCount += 1;
+            return {
+              label,
+              checked: isChecked,
+              status: statuses.join(', '),   // matches technician form format
+            };
+          }),
+        }));
+
+        checklist_results = {
+          equipment_type: equipment.name ?? null,
+          templateName: template.name ?? null,
+          checkedCount,
+          totalCount,
+          categories,
+        };
+      }
+    }
+
+    // 3. Generate report_code
+    const report_code = await this.generateUniqueReportCode();
+
+    // 4. Insert report
+    const completionIso = input.completionDateTime;
+    const { data: report, error } = await this.supabase.client
+      .from('maintenance_reports')
+      .insert({
+        building_id: input.buildingId,
+        equipment_id: input.equipmentId,
+        report_code,
+        maintenance_type: 'Scheduled/Preventive Maintenance',
+        arrival_date_time: completionIso,
+        completion_date_time: completionIso,
+        technician_name: 'Historical Backfill',
+        status: 'closed',
+        priority: 'Medium',
+        assigned_to: null,
+        findings: 'Historical maintenance record',
+        work_performed: 'Routine maintenance (history)',
+        checklist_results,
+        internal_notes: [
+          {
+            id: randomUUID(),
+            at: new Date().toISOString(),
+            author: input.createdBy,
+            kind: 'system',
+            text: `History record added by admin (${input.items?.filter((i) => (i.statuses ?? []).length > 0).length ?? 0} items assessed).`,
+          },
+        ],
+      })
+      .select()
+      .single();
+
+    if (error) throw new InternalServerErrorException(`Failed to insert history record: ${error.message}`);
+    return {
+      report_code: report.report_code,
+      id: report.id,
+      checkedCount: checklist_results?.checkedCount ?? 0,
+      totalCount: checklist_results?.totalCount ?? 0,
+    };
   }
 
   async updateDetail(

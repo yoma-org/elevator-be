@@ -1,9 +1,12 @@
 import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CreateMaintenanceReportDto } from '../common/dto/create-maintenance-report.dto';
+import { CreateHistoryRecordDto } from '../common/dto/create-history-record.dto';
 import { MaintenanceReportsService } from './maintenance-reports.service';
 import { AdminAuthGuard } from '../admin-auth/admin-auth.guard';
 import { can, canView, NEXT_STATUS } from '../admin-auth/permissions';
+
+const HISTORY_ALLOWED_ROLES = new Set(['operation']);
 
 @ApiTags('maintenance-reports')
 @ApiBearerAuth('admin-jwt')
@@ -172,6 +175,27 @@ export class MaintenanceReportsController {
 
     const report = await this.maintenanceReportsService.createCbsCall(body);
     return { success: true, report_code: report.report_code, status: report.status };
+  }
+
+  @Get('admin/equipment-dates/:equipmentId')
+  @UseGuards(AdminAuthGuard)
+  async getEquipmentDates(@Param('equipmentId') equipmentId: string) {
+    const dates = await this.maintenanceReportsService.getEquipmentMaintenanceDates(equipmentId);
+    return { success: true, dates };
+  }
+
+  @Post('admin/history')
+  @UseGuards(AdminAuthGuard)
+  async createHistory(@Body() body: CreateHistoryRecordDto, @Req() req: any) {
+    const role: string = req.adminUser?.role ?? '';
+    if (!HISTORY_ALLOWED_ROLES.has(role)) {
+      throw new ForbiddenException('You do not have permission to add history records');
+    }
+    const result = await this.maintenanceReportsService.createHistoryRecord({
+      ...body,
+      createdBy: req.adminUser?.name ?? 'Unknown',
+    });
+    return { success: true, ...result };
   }
 
   @Patch('admin/:report_code/status')
