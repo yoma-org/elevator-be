@@ -11,6 +11,7 @@ import { BatchModule } from './batch/batch.module';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { MmprModule } from './mmpr/mmpr.module';
 import { RosterImportModule } from './roster-import/roster-import.module';
+import { ProjectsModule } from './projects/projects.module';
 
 @Global()
 @Module({
@@ -24,6 +25,7 @@ import { RosterImportModule } from './roster-import/roster-import.module';
     BatchModule,
     MmprModule,
     RosterImportModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService, SupabaseService],
