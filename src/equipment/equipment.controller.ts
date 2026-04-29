@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { EquipmentService } from './equipment.service';
 import { AdminAuthGuard } from '../admin-auth/admin-auth.guard';
@@ -35,5 +35,12 @@ export class EquipmentController {
   async updateType(@Param('id') id: string, @Body() body: { equipmentTypeId: string }) {
     const data = await this.equipmentService.updateEquipmentType(id, body.equipmentTypeId);
     return { success: true, equipment: data };
+  }
+
+  @ApiBearerAuth('admin-jwt')
+  @Delete(':id')
+  @UseGuards(AdminAuthGuard)
+  async deleteEquipment(@Param('id') id: string) {
+    return this.equipmentService.deleteEquipment(id);
   }
 }

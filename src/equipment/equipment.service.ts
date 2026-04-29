@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase.service';
 
 @Injectable()
@@ -58,6 +58,27 @@ export class EquipmentService {
     const { data, error } = await query;
     if (error) throw error;
     return data ?? [];
+  }
+
+  /** Delete an equipment record. Returns 409 if FK constraints (e.g. existing work orders) block it. */
+  async deleteEquipment(equipmentId: string) {
+    const { data: existing } = await this.supabase.client
+      .from('equipment')
+      .select('id, code, name')
+      .eq('id', equipmentId)
+      .maybeSingle();
+    if (!existing) throw new NotFoundException('Equipment not found');
+
+    const { error } = await this.supabase.client.from('equipment').delete().eq('id', equipmentId);
+    if (error) {
+      if ((error as any).code === '23503' || /foreign key/i.test(error.message)) {
+        throw new ConflictException(
+          `Cannot delete equipment "${(existing as any).code}" because it is referenced by work orders or maintenance history.`,
+        );
+      }
+      throw new InternalServerErrorException(error.message);
+    }
+    return { success: true };
   }
 
   /** Update an equipment's type. Also denormalize equipment.name to the new type's name. */
