@@ -13,6 +13,7 @@ import { MmprModule } from './mmpr/mmpr.module';
 import { RosterImportModule } from './roster-import/roster-import.module';
 import { ProjectsModule } from './projects/projects.module';
 import { BuildingsModule } from './buildings/buildings.module';
+import { ServiceManagementModule } from './service-management/service-management.module';
 
 @Global()
 @Module({
@@ -28,6 +29,7 @@ import { BuildingsModule } from './buildings/buildings.module';
     RosterImportModule,
     ProjectsModule,
     BuildingsModule,
+    ServiceManagementModule,
   ],
   controllers: [AppController],
   providers: [AppService, SupabaseService],
