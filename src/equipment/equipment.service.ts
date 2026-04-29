@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase.service';
 
 @Injectable()
@@ -58,5 +58,24 @@ export class EquipmentService {
     const { data, error } = await query;
     if (error) throw error;
     return data ?? [];
+  }
+
+  /** Update an equipment's type. Also denormalize equipment.name to the new type's name. */
+  async updateEquipmentType(equipmentId: string, equipmentTypeId: string) {
+    const { data: type } = await this.supabase.client
+      .from('equipment_types')
+      .select('id, name')
+      .eq('id', equipmentTypeId)
+      .maybeSingle();
+    if (!type) throw new NotFoundException('Equipment type not found');
+
+    const { data, error } = await this.supabase.client
+      .from('equipment')
+      .update({ equipment_type_id: type.id, name: type.name })
+      .eq('id', equipmentId)
+      .select()
+      .single();
+    if (error) throw new InternalServerErrorException(error.message);
+    return data;
   }
 }
